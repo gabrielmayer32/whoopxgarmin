@@ -28,13 +28,13 @@ echo "==> Starting backend (serving built frontend)..."
 cd "$ROOT"
 nohup venv/bin/uvicorn backend.main:app \
     --host 0.0.0.0 \
-    --port 8000 \
+    --port 8765 \
     >> "$LOG_DIR/app.log" 2>&1 &
 
 echo "==> Waiting for health check..."
 for i in $(seq 1 15); do
-    if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
-        echo "==> App is running at http://localhost:8000"
+    if curl -sf http://localhost:8765/health > /dev/null 2>&1; then
+        echo "==> App is running at http://localhost:8765"
         exit 0
     fi
     sleep 2
