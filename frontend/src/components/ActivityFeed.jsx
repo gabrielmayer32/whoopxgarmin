@@ -11,10 +11,15 @@ function fmtDist(m) {
   return `${Math.round(m)} m`
 }
 
-export default function ActivityFeed({ activities = [], stravaActivities = [] }) {
+function sourceTag(source) {
+  if (source === 'whoop') return <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400">Whoop</span>
+  return <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">Garmin</span>
+}
+
+export default function ActivityFeed({ activities = [], whoopWorkouts = [] }) {
   const garminRows = activities.map(a => ({ ...a, _source: 'garmin' }))
-  const stravaRows = stravaActivities.map(a => ({ ...a, _source: 'strava' }))
-  const all = [...garminRows, ...stravaRows]
+  const whoopRows = whoopWorkouts.map(a => ({ ...a, _source: 'whoop' }))
+  const all = [...garminRows, ...whoopRows]
 
   return (
     <div className="bg-surface rounded-2xl p-5 border border-border">
@@ -41,12 +46,7 @@ export default function ActivityFeed({ activities = [], stravaActivities = [] })
                   <td className="py-2.5 text-right font-mono text-xs text-blue">{a.avg_hr ? Math.round(a.avg_hr) : '—'}</td>
                   <td className="py-2.5 text-right font-mono text-xs text-red">{a.max_hr ? Math.round(a.max_hr) : '—'}</td>
                   <td className="py-2.5 text-right font-mono text-xs">{a.calories ? Math.round(a.calories) : '—'}</td>
-                  <td className="py-2.5 text-right">
-                    {a._source === 'strava'
-                      ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400">Strava</span>
-                      : <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">Garmin</span>
-                    }
-                  </td>
+                  <td className="py-2.5 text-right">{sourceTag(a._source)}</td>
                 </tr>
               ))}
             </tbody>

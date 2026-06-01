@@ -381,6 +381,18 @@ def get_whoop_workouts(target_date: str) -> list:
         conn.close()
 
 
+def get_whoop_workouts_range(start: str, end: str) -> list:
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM whoop_workouts WHERE date BETWEEN ? AND ? ORDER BY date DESC",
+            (start, end),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
 def get_whoop_range(start: str, end: str) -> list:
     conn = get_connection()
     try:

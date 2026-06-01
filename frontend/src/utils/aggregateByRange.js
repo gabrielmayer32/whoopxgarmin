@@ -1,6 +1,8 @@
 // Groups daily data into weekly or monthly buckets depending on range size.
-// For each bucket, numeric fields are averaged; the date is the bucket start.
+// sumKeys: fields that should be summed (not averaged) across the bucket, treating null as 0.
 // Returns raw data unchanged when range is <= 90 days.
+
+const SUM_KEYS = new Set(['training_load', 'acute_load', 'tss', 'load', 'steps'])
 
 function isoWeek(dateStr) {
   const d = new Date(dateStr)
@@ -24,14 +26,12 @@ function bucketKey(dateStr, days) {
 function bucketLabel(key, days) {
   if (days <= 90) return key.slice(5) // MM-DD
   if (days <= 365) {
-    // Parse ISO week back to a readable date (Monday of that week)
     const [year, w] = key.split('-W').map(Number)
     const jan4 = new Date(Date.UTC(year, 0, 4))
     const monday = new Date(jan4)
     monday.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() || 7) - 1) + (w - 1) * 7)
     return monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
   }
-  // Monthly: "Jan '24"
   const [year, month] = key.split('-')
   const d = new Date(Date.UTC(Number(year), Number(month) - 1, 1))
   return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' })
@@ -53,12 +53,21 @@ export default function aggregateByRange(data, days) {
 
   return Array.from(buckets.values()).map(({ _rows, _key }) => {
     const agg = { date: bucketLabel(_key, days) }
-    const numericKeys = Object.keys(_rows[0]).filter(
-      (k) => k !== 'date' && typeof _rows[0][k] === 'number'
+    const firstRow = _rows[0]
+    const numericKeys = Object.keys(firstRow).filter(
+      (k) => k !== 'date' && (typeof firstRow[k] === 'number' || firstRow[k] == null)
+        && _rows.some(r => typeof r[k] === 'number')
     )
     for (const k of numericKeys) {
-      const vals = _rows.map((r) => r[k]).filter((v) => v != null && !isNaN(v))
-      agg[k] = vals.length ? parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1)) : null
+      if (SUM_KEYS.has(k)) {
+        // Sum treating null as 0 — load fields accumulate across the period
+        const total = _rows.reduce((acc, r) => acc + (r[k] ?? 0), 0)
+        agg[k] = parseFloat(total.toFixed(1))
+      } else {
+        // Average, ignoring nulls
+        const vals = _rows.map((r) => r[k]).filter((v) => v != null && !isNaN(v))
+        agg[k] = vals.length ? parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1)) : null
+      }
     }
     return agg
   })

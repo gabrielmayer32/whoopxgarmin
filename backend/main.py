@@ -130,7 +130,6 @@ async def manual_backfill(days: int = None, start_date: str = None):
         try:
             from backend.services.garmin_service import backfill_garmin_from_date
             from backend.services.whoop_service import backfill_whoop_from_date, is_authorized as whoop_auth
-            from backend.services.strava_service import backfill_strava, is_authorized as strava_auth
             from datetime import timedelta
 
             _backfill_state["service"] = "garmin"
@@ -150,10 +149,6 @@ async def manual_backfill(days: int = None, start_date: str = None):
                     _backfill_state["total"] = total
 
                 backfill_whoop_from_date(start, end, progress_callback=whoop_progress)
-
-            if strava_auth():
-                _backfill_state["service"] = "strava"
-                backfill_strava(total_days)
 
         except Exception as e:
             logger.error(f"Backfill failed: {e}", exc_info=True)

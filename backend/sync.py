@@ -30,15 +30,4 @@ def run_full_sync():
     except Exception as e:
         logger.error(f"WHOOP sync error: {e}", exc_info=True)
 
-    try:
-        from backend.services.strava_service import sync_strava_range, is_authorized as strava_authorized
-        if strava_authorized():
-            logger.info(f"Syncing Strava gym sessions: {yesterday} to {today}")
-            sync_strava_range(yesterday, today)
-            logger.info("Strava sync complete")
-        else:
-            logger.warning("Strava not authorized — visit /strava/login")
-    except Exception as e:
-        logger.error(f"Strava sync error: {e}", exc_info=True)
-
     logger.info("=== Full sync finished ===")

@@ -39,9 +39,6 @@ export const fetchStrainRecoveryCorrelation = (days = 60, startDate = null) =>
 export const fetchGymSessions = (days = 60, startDate = null) =>
   api.get('/gym-sessions', { params: rangeParams(days, startDate) }).then((r) => r.data)
 
-export const fetchStravaStatus = () =>
-  axios.get('/strava/status').then((r) => r.data)
-
 export const fetchInsights = (date) =>
   api.get('/insights', { params: date ? { date } : {}, timeout: 120000 }).then((r) => r.data)
 

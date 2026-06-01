@@ -315,23 +315,16 @@ export default function Training() {
         <div className="bg-surface rounded-2xl p-5 border border-border">
           <div className="flex items-center justify-between mb-4">
             <h3 className="metric-label">Gym Sessions</h3>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-orange-400">Strava</span>
-              {gymSessions.length === 0 && (
-                <button onClick={() => { window.location.href = 'http://localhost:8000/strava/login' }} className="text-xs text-orange-400 border border-orange-400/30 rounded-lg px-2 py-1 hover:bg-orange-400/10 transition-colors">
-                  Connect →
-                </button>
-              )}
-            </div>
+            <span className="text-xs font-medium text-green-400">Whoop</span>
           </div>
           {gymSessions.length === 0 ? (
-            <p className="text-muted text-sm">No gym sessions found. Connect Strava and run a backfill.</p>
+            <p className="text-muted text-sm">No gym sessions found. Workouts sync automatically via Whoop.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-muted text-xs uppercase tracking-wider border-b border-border">
-                    {['Date', 'Name', 'Type', 'Duration', 'Avg HR', 'Max HR', 'Calories'].map(h => (
+                    {['Date', 'Name', 'Type', 'Duration', 'Strain', 'Avg HR', 'Max HR', 'Cal'].map(h => (
                       <th key={h} className={`pb-3 font-medium ${h === 'Date' || h === 'Name' || h === 'Type' ? 'text-left' : 'text-right'}`}>{h}</th>
                     ))}
                   </tr>
@@ -340,9 +333,10 @@ export default function Training() {
                   {gymSessions.map((s) => (
                     <tr key={s.activity_id} className="hover:bg-surface-2 transition-colors">
                       <td className="py-2.5 text-muted text-xs">{s.date?.slice(5)}</td>
-                      <td className="py-2.5 font-medium max-w-[180px] truncate pr-3">{s.name}</td>
-                      <td className="py-2.5 text-xs text-orange-400">{s.sport_type}</td>
+                      <td className="py-2.5 font-medium max-w-[180px] truncate pr-3">{s.name || s.sport_type}</td>
+                      <td className="py-2.5 text-xs text-green-400">{s.sport_type}</td>
                       <td className="py-2.5 text-right font-mono text-xs">{fmtDuration(s.duration_seconds)}</td>
+                      <td className="py-2.5 text-right font-mono text-xs text-yellow">{s.strain ? s.strain.toFixed(1) : '—'}</td>
                       <td className="py-2.5 text-right font-mono text-xs text-blue">{s.avg_hr ? `${Math.round(s.avg_hr)}` : '—'}</td>
                       <td className="py-2.5 text-right font-mono text-xs text-red">{s.max_hr ? `${Math.round(s.max_hr)}` : '—'}</td>
                       <td className="py-2.5 text-right font-mono text-xs">{s.calories ? `${Math.round(s.calories)}` : '—'}</td>

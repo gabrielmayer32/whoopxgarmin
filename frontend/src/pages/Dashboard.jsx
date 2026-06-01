@@ -177,7 +177,7 @@ export default function Dashboard() {
       {/* Activities + Strain */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2">
-          <ActivityFeed activities={data?.training?.garmin_activities || []} stravaActivities={data?.training?.strava_activities || []} />
+          <ActivityFeed activities={data?.training?.garmin_activities || []} whoopWorkouts={data?.training?.whoop_workouts || []} />
         </div>
         <StrainRing strain={data?.training?.whoop_strain} />
       </div>

@@ -1,17 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { useState, useEffect } from 'react'
-import { triggerSync, fetchStravaStatus } from '../api/client'
+import { useState } from 'react'
+import { triggerSync } from '../api/client'
 import HistoryBackfillModal from './HistoryBackfillModal'
 
 export default function Navbar() {
   const [syncing, setSyncing] = useState(false)
   const [synced, setSynced] = useState(false)
-  const [stravaAuth, setStravaAuth] = useState(true)
   const [showBackfill, setShowBackfill] = useState(false)
-
-  useEffect(() => {
-    fetchStravaStatus().then(s => setStravaAuth(s.authorized)).catch(() => {})
-  }, [])
 
   async function handleSync() {
     setSyncing(true)
@@ -41,17 +36,6 @@ export default function Navbar() {
             <NavLink to="/training" className={linkClass}>Training</NavLink>
           </div>
         </div>
-        {/* {!stravaAuth && (
-          <button
-            onClick={() => { window.location.href = 'http://localhost:8000/strava/login' }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 transition-colors"
-          >
-            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" />
-            </svg>
-            Connect Strava
-          </button>
-        )} */}
         <div className="flex items-center gap-2">
         <button
           onClick={() => setShowBackfill(true)}

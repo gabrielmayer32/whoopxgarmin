@@ -10,13 +10,10 @@ from backend.services.whoop_service import (
     get_whoop_cycle,
     get_whoop_sleep,
     get_whoop_workouts,
+    get_whoop_workouts_range,
     get_whoop_range,
     get_whoop_sleep_range,
     is_authorized,
-)
-from backend.services.strava_service import (
-    get_strava_activities,
-    is_authorized as strava_authorized,
 )
 from backend.insights import compute_insights
 
@@ -82,18 +79,20 @@ def _fmt_activity(a: dict) -> dict:
     }
 
 
-def _fmt_strava_activity(a: dict) -> dict:
+def _fmt_whoop_workout(w: dict) -> dict:
+    kj = w.get("kilojoules")
     return {
-        "id": f"strava_{a.get('activity_id')}",
-        "type": a.get("sport_type"),
-        "name": a.get("name"),
-        "date": a.get("date"),
-        "duration_seconds": a.get("duration_seconds"),
-        "distance_meters": a.get("distance_meters"),
-        "avg_hr": a.get("avg_hr"),
-        "max_hr": a.get("max_hr"),
-        "calories": a.get("calories"),
-        "source": "strava",
+        "id": f"whoop_{w.get('workout_id')}",
+        "type": w.get("sport_name"),
+        "name": w.get("sport_name"),
+        "date": w.get("date"),
+        "duration_seconds": w.get("duration_seconds"),
+        "distance_meters": None,
+        "avg_hr": w.get("avg_hr"),
+        "max_hr": w.get("max_hr"),
+        "calories": round(kj / 4.184) if kj else None,
+        "strain": w.get("strain"),
+        "source": "whoop",
     }
 
 
@@ -105,9 +104,13 @@ def dashboard(date: str = None):
     activities = get_garmin_activities(target)
     whoop_cycle = get_whoop_cycle(target) or {}
     whoop_sleep = get_whoop_sleep(target) or {}
-    whoop_workouts = get_whoop_workouts(target)
+    whoop_workouts_list = get_whoop_workouts(target)
 
-    strava_acts = get_strava_activities(target) if strava_authorized() else []
+    GARMIN_COVERED = {"cycling", "running", "run", "bike", "swimming", "swim"}
+    non_ride_workouts = [
+        _fmt_whoop_workout(w) for w in whoop_workouts_list
+        if (w.get("sport_name") or "").lower() not in GARMIN_COVERED
+    ]
 
     return {
         "date": target,
@@ -126,7 +129,7 @@ def dashboard(date: str = None):
         "training": {
             "whoop_strain": whoop_cycle.get("strain"),
             "garmin_activities": [_fmt_activity(a) for a in activities],
-            "strava_activities": [_fmt_strava_activity(a) for a in strava_acts],
+            "whoop_workouts": non_ride_workouts,
             "garmin_training_load": garmin.get("training_load"),
             "garmin_acute_load": garmin.get("acute_load"),
         },
@@ -404,16 +407,46 @@ def strain_recovery_correlation(days: int = 60, start_date: str = None):
 
 @router.get("/gym-sessions")
 def gym_sessions(days: int = 60, start_date: str = None):
-    from backend.services.strava_service import get_strava_range, is_authorized
-    if not is_authorized():
-        return []
     end = _today()
     if start_date:
         start = _date.fromisoformat(start_date)
         end = start + timedelta(days=days - 1)
     else:
         start = end - timedelta(days=days - 1)
-    return get_strava_range(start.isoformat(), end.isoformat())
+
+    RIDE_SPORTS = {"cycling", "running", "run", "bike", "swim", "swimming"}
+    whoop_rows = get_whoop_workouts_range(start.isoformat(), end.isoformat())
+    gym_workouts = []
+    for w in whoop_rows:
+        sport = (w.get("sport_name") or "").lower()
+        if sport in RIDE_SPORTS:
+            continue
+        kj = w.get("kilojoules")
+        gym_workouts.append({
+            "activity_id": f"whoop_{w['workout_id']}",
+            "date": w.get("date"),
+            "name": w.get("sport_name"),
+            "sport_type": w.get("sport_name"),
+            "duration_seconds": w.get("duration_seconds"),
+            "avg_hr": w.get("avg_hr"),
+            "max_hr": w.get("max_hr"),
+            "calories": round(kj / 4.184) if kj else None,
+            "strain": w.get("strain"),
+            "source": "whoop",
+        })
+
+    whoop_dates = {w["date"] for w in gym_workouts}
+
+    from backend.services.strava_service import get_strava_range, is_authorized as strava_auth
+    if strava_auth():
+        legacy = get_strava_range(start.isoformat(), end.isoformat())
+        for s in legacy:
+            if s.get("date") not in whoop_dates:
+                s["source"] = "strava"
+                gym_workouts.append(s)
+
+    gym_workouts.sort(key=lambda x: x.get("date", ""), reverse=True)
+    return gym_workouts
 
 
 @router.get("/insights")
