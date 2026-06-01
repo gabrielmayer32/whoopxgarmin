@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+garminconnect
+garth
+httpx
+python-dotenv
+SQLAlchemy
+apscheduler
+pydantic
+pydantic-settings

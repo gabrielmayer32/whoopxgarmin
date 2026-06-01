@@ -1,0 +1,74 @@
+import { NavLink } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { triggerSync, fetchStravaStatus } from '../api/client'
+
+export default function Navbar() {
+  const [syncing, setSyncing] = useState(false)
+  const [synced, setSynced] = useState(false)
+  const [stravaAuth, setStravaAuth] = useState(true)
+
+  useEffect(() => {
+    fetchStravaStatus().then(s => setStravaAuth(s.authorized)).catch(() => {})
+  }, [])
+
+  async function handleSync() {
+    setSyncing(true)
+    try {
+      await triggerSync()
+      setSynced(true)
+      setTimeout(() => setSynced(false), 3000)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const linkClass = ({ isActive }) =>
+    `px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+      isActive ? 'bg-surface-2 text-white' : 'text-muted hover:text-white'
+    }`
+
+  return (
+    <nav className="border-b border-border bg-surface sticky top-0 z-10">
+      <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-sm tracking-tight">⚡ Health Dashboard</span>
+          <span className="text-border">|</span>
+          <div className="flex gap-1">
+            <NavLink to="/" end className={linkClass}>Dashboard</NavLink>
+            <NavLink to="/recovery" className={linkClass}>Recovery</NavLink>
+            <NavLink to="/training" className={linkClass}>Training</NavLink>
+          </div>
+        </div>
+        {!stravaAuth && (
+          <button
+            onClick={() => { window.location.href = 'http://localhost:8000/strava/login' }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 transition-colors"
+          >
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" />
+            </svg>
+            Connect Strava
+          </button>
+        )}
+        <button
+          onClick={handleSync}
+          disabled={syncing}
+          className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border border-border hover:border-muted text-muted hover:text-white transition-colors disabled:opacity-50"
+        >
+          {syncing ? (
+            <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+          ) : (
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          )}
+          {synced ? 'Synced!' : syncing ? 'Syncing...' : 'Sync'}
+        </button>
+      </div>
+    </nav>
+  )
+}

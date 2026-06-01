@@ -1,0 +1,28 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Node
+node_modules/
+dist/
+
+# Environment & secrets
+.env
+
+# Database
+health_data.db
+
+# LLM cache & models
+.llm_cache/
+models/*.gguf
+
+# OS
+.DS_Store
+
+# IDE / Claude
+.claude/
+
+# Logs
+*.log
