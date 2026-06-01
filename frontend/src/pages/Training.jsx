@@ -158,6 +158,8 @@ export default function Training() {
       {/* KPI strip */}
       {activities.length > 0 && (() => {
         const totalTSS = activities.reduce((s, a) => s + (a.tss || 0), 0)
+        const pwrRides = activities.filter(a => a.avg_power)
+        const avgPwr = pwrRides.length ? pwrRides.reduce((s, a) => s + a.avg_power, 0) / pwrRides.length : 0
         const npRides = activities.filter(a => a.norm_power)
         const avgNP = npRides.length ? npRides.reduce((s, a) => s + a.norm_power, 0) / npRides.length : 0
         const ifRides = activities.filter(a => a.intensity_factor)
@@ -167,6 +169,7 @@ export default function Training() {
         return (
           <div className="flex gap-3 flex-wrap">
             <StatPill label={`${preset} TSS`} value={Math.round(totalTSS)} color="text-blue" />
+            <StatPill label="Avg Power" value={pwrRides.length ? Math.round(avgPwr) : null} unit="W" color="text-blue" />
             <StatPill label="Avg NP" value={npRides.length ? Math.round(avgNP) : null} unit="W" color="text-purple" />
             <StatPill label="Avg IF" value={ifRides.length ? avgIF : null} color="text-amber" />
             <StatPill label={`${preset} Distance`} value={totalKm.toFixed(0)} unit="km" color="text-green" />
@@ -246,6 +249,7 @@ export default function Training() {
               <StatPill label="Distance" value={fmtDist(selectedRide.distance_meters)} />
               <StatPill label="Avg Power" value={selectedRide.avg_power} unit="W" color="text-blue" />
               <StatPill label="NP" value={selectedRide.norm_power} unit="W" color="text-purple" />
+              <StatPill label="kJ" value={selectedRide.avg_power && selectedRide.duration_seconds ? Math.round(selectedRide.avg_power * selectedRide.duration_seconds / 1000) : null} color="text-orange" />
               <StatPill label="TSS" value={selectedRide.tss?.toFixed(0)} color="text-amber" />
               <StatPill label="IF" value={selectedRide.intensity_factor} color="text-green" />
               <StatPill label="Avg Cadence" value={selectedRide.avg_cadence} unit="rpm" />

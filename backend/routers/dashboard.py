@@ -79,20 +79,21 @@ def _fmt_activity(a: dict) -> dict:
     }
 
 
-def _fmt_whoop_workout(w: dict) -> dict:
+def _fmt_whoop_workout(w: dict, strava_match: dict = None) -> dict:
     kj = w.get("kilojoules")
+    s = strava_match or {}
     return {
         "id": f"whoop_{w.get('workout_id')}",
-        "type": w.get("sport_name"),
-        "name": w.get("sport_name"),
+        "type": s.get("sport_type") or w.get("sport_name"),
+        "name": s.get("name") or w.get("sport_name"),
         "date": w.get("date"),
         "duration_seconds": w.get("duration_seconds"),
-        "distance_meters": None,
-        "avg_hr": w.get("avg_hr"),
-        "max_hr": w.get("max_hr"),
-        "calories": round(kj / 4.184) if kj else None,
+        "distance_meters": s.get("distance_meters"),
+        "avg_hr": s.get("avg_hr") or w.get("avg_hr"),
+        "max_hr": s.get("max_hr") or w.get("max_hr"),
+        "calories": s.get("calories") or (round(kj / 4.184) if kj else None),
         "strain": w.get("strain"),
-        "source": "whoop",
+        "source": "whoop+strava" if strava_match else "whoop",
     }
 
 
@@ -106,11 +107,16 @@ def dashboard(date: str = None):
     whoop_sleep = get_whoop_sleep(target) or {}
     whoop_workouts_list = get_whoop_workouts(target)
 
-    GARMIN_COVERED = {"cycling", "running", "run", "bike", "swimming", "swim"}
-    non_ride_workouts = [
-        _fmt_whoop_workout(w) for w in whoop_workouts_list
-        if (w.get("sport_name") or "").lower() not in GARMIN_COVERED
-    ]
+    from backend.services.strava_service import get_strava_activities, is_authorized as strava_auth
+    strava_acts = get_strava_activities(target) if strava_auth() else []
+
+    GARMIN_COVERED = {"cycling", "running", "run", "bike", "swimming", "swim", "mountain-biking", "mountain biking"}
+    non_ride_workouts = []
+    for w in whoop_workouts_list:
+        if (w.get("sport_name") or "").lower() in GARMIN_COVERED:
+            continue
+        match = _match_strava(w, strava_acts)
+        non_ride_workouts.append(_fmt_whoop_workout(w, match))
 
     return {
         "date": target,
@@ -414,39 +420,62 @@ def gym_sessions(days: int = 60, start_date: str = None):
     else:
         start = end - timedelta(days=days - 1)
 
-    RIDE_SPORTS = {"cycling", "running", "run", "bike", "swim", "swimming"}
+    RIDE_SPORTS = {"cycling", "running", "run", "bike", "swim", "swimming", "mountain-biking", "mountain biking"}
     whoop_rows = get_whoop_workouts_range(start.isoformat(), end.isoformat())
+
+    from backend.services.strava_service import get_strava_range, is_authorized as strava_auth
+    strava_by_date = {}
+    if strava_auth():
+        for s in get_strava_range(start.isoformat(), end.isoformat()):
+            strava_by_date.setdefault(s.get("date"), []).append(s)
+
     gym_workouts = []
+    whoop_dates = set()
     for w in whoop_rows:
         sport = (w.get("sport_name") or "").lower()
         if sport in RIDE_SPORTS:
             continue
+        whoop_dates.add(w.get("date"))
         kj = w.get("kilojoules")
+
+        strava_match = _match_strava(w, strava_by_date.get(w.get("date"), []))
+
         gym_workouts.append({
             "activity_id": f"whoop_{w['workout_id']}",
             "date": w.get("date"),
-            "name": w.get("sport_name"),
-            "sport_type": w.get("sport_name"),
+            "name": strava_match.get("name") if strava_match else w.get("sport_name"),
+            "sport_type": strava_match.get("sport_type") if strava_match else w.get("sport_name"),
             "duration_seconds": w.get("duration_seconds"),
-            "avg_hr": w.get("avg_hr"),
-            "max_hr": w.get("max_hr"),
-            "calories": round(kj / 4.184) if kj else None,
+            "avg_hr": strava_match.get("avg_hr") if strava_match and strava_match.get("avg_hr") else w.get("avg_hr"),
+            "max_hr": strava_match.get("max_hr") if strava_match and strava_match.get("max_hr") else w.get("max_hr"),
+            "calories": strava_match.get("calories") if strava_match and strava_match.get("calories") else (round(kj / 4.184) if kj else None),
             "strain": w.get("strain"),
-            "source": "whoop",
+            "source": "whoop+strava" if strava_match else "whoop",
         })
 
-    whoop_dates = {w["date"] for w in gym_workouts}
-
-    from backend.services.strava_service import get_strava_range, is_authorized as strava_auth
-    if strava_auth():
-        legacy = get_strava_range(start.isoformat(), end.isoformat())
-        for s in legacy:
-            if s.get("date") not in whoop_dates:
+    for d, acts in strava_by_date.items():
+        if d not in whoop_dates:
+            for s in acts:
                 s["source"] = "strava"
                 gym_workouts.append(s)
 
     gym_workouts.sort(key=lambda x: x.get("date", ""), reverse=True)
     return gym_workouts
+
+
+def _match_strava(whoop_workout: dict, strava_candidates: list):
+    if not strava_candidates:
+        return None
+    w_dur = whoop_workout.get("duration_seconds") or 0
+    best = None
+    best_diff = float("inf")
+    for s in strava_candidates:
+        s_dur = s.get("duration_seconds") or 0
+        diff = abs(w_dur - s_dur)
+        if diff < best_diff and diff < max(w_dur * 0.3, 300):
+            best = s
+            best_diff = diff
+    return best
 
 
 @router.get("/insights")

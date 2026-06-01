@@ -150,6 +150,11 @@ async def manual_backfill(days: int = None, start_date: str = None):
 
                 backfill_whoop_from_date(start, end, progress_callback=whoop_progress)
 
+            from backend.services.strava_service import backfill_strava, is_authorized as strava_auth
+            if strava_auth():
+                _backfill_state["service"] = "strava"
+                backfill_strava(total_days)
+
         except Exception as e:
             logger.error(f"Backfill failed: {e}", exc_info=True)
             _backfill_state["error"] = str(e)

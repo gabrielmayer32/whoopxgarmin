@@ -176,7 +176,7 @@ def sync_strava_range(start: date, end: date):
                 act_date,
                 detail.get("name"),
                 detail.get("sport_type"),
-                detail.get("moving_time"),
+                detail.get("elapsed_time") or detail.get("moving_time"),
                 detail.get("distance"),
                 detail.get("average_heartrate"),
                 detail.get("max_heartrate"),
