@@ -26,10 +26,20 @@ npm run build
 
 echo "==> Starting backend (serving built frontend)..."
 cd "$ROOT"
-nohup venv/bin/uvicorn backend.main:app \
-    --host 0.0.0.0 \
-    --port 8765 \
-    >> "$LOG_DIR/app.log" 2>&1 &
+# Restart via launchctl so the process is owned by the login session
+# and survives the GitHub Actions runner shell closing.
+if launchctl list com.gabrielmayer.whoopxgarmin &>/dev/null; then
+    launchctl stop com.gabrielmayer.whoopxgarmin 2>/dev/null || true
+    sleep 1
+    launchctl start com.gabrielmayer.whoopxgarmin
+else
+    # LaunchAgent not installed — start directly (manual runs / first boot)
+    nohup "$ROOT/venv/bin/uvicorn" backend.main:app \
+        --host 0.0.0.0 \
+        --port 8765 \
+        >> "$LOG_DIR/app.log" 2>&1 &
+    disown
+fi
 
 echo "==> Waiting for health check..."
 for i in $(seq 1 15); do
