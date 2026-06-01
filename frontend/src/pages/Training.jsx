@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { fetchCyclingStats, fetchPowerCurveBest, fetchActivities, fetchGymSessions } from '../api/client'
 import TrainingLoadChart from '../components/TrainingLoadChart'
 import PowerCurveChart from '../components/PowerCurveChart'
+import DateRangeSelector from '../components/DateRangeSelector'
+import useDateRange from '../hooks/useDateRange'
+import aggregateByRange from '../utils/aggregateByRange'
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend, RadarChart, PolarGrid,
@@ -56,6 +59,7 @@ const HR_ZONE_NAMES = ['Z1', 'Z2', 'Z3', 'Z4', 'Z5']
 const POWER_ZONE_COLORS = ['#2a3a5a', '#1a4a6a', '#4a9eff', '#00c8a0', '#f5a623', '#ff8c42', '#ff4757']
 
 export default function Training() {
+  const { preset, days, startDate, offset, windowLabel, canGoForward, select, goBack, goForward } = useDateRange('3M')
   const [stats, setStats] = useState([])
   const [bestPower, setBestPower] = useState(null)
   const [activities, setActivities] = useState([])
@@ -65,7 +69,13 @@ export default function Training() {
   const [compareRide, setCompareRide] = useState(null)
 
   useEffect(() => {
-    Promise.all([fetchCyclingStats(60), fetchPowerCurveBest(90), fetchActivities(60), fetchGymSessions(60)])
+    setLoading(true)
+    Promise.all([
+      fetchCyclingStats(days, startDate),
+      fetchPowerCurveBest(days, startDate),
+      fetchActivities(days, startDate),
+      fetchGymSessions(days, startDate),
+    ])
       .then(([s, bp, acts, gym]) => {
         setStats(s)
         setBestPower(bp)
@@ -75,13 +85,17 @@ export default function Training() {
       })
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [])
+  }, [days, startDate])
 
-  // TSS trend
-  const tssData = stats.map(r => ({ date: r.date?.slice(5), tss: r.tss, load: r.training_load }))
+  const tssData = aggregateByRange(
+    stats.map(r => ({ date: r.date, tss: r.tss, load: r.training_load })),
+    days
+  )
 
-  // Power trend
-  const powerData = stats.map(r => ({ date: r.date?.slice(5), np: r.norm_power, avg: r.avg_power }))
+  const powerData = aggregateByRange(
+    stats.map(r => ({ date: r.date, np: r.norm_power, avg: r.avg_power })),
+    days
+  )
 
   // Power curve — durations in seconds for proper x-axis ordering
   const CURVE_POINTS = [
@@ -128,25 +142,35 @@ export default function Training() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 flex flex-col gap-6">
-      <h1 className="text-xl font-semibold">Training</h1>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h1 className="text-xl font-semibold">Training</h1>
+        <DateRangeSelector
+          preset={preset}
+          offset={offset}
+          windowLabel={windowLabel}
+          canGoForward={canGoForward}
+          onSelect={select}
+          onBack={goBack}
+          onForward={goForward}
+        />
+      </div>
 
       {/* KPI strip */}
       {activities.length > 0 && (() => {
-        const last30 = activities.filter(a => {
-          const d = new Date(a.date); const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30); return d >= cutoff
-        })
-        const totalTSS = last30.reduce((s, a) => s + (a.tss || 0), 0)
-        const avgNP = last30.filter(a => a.norm_power).reduce((s, a) => s + a.norm_power, 0) / (last30.filter(a => a.norm_power).length || 1)
-        const avgIF = last30.filter(a => a.intensity_factor).reduce((s, a) => s + a.intensity_factor, 0) / (last30.filter(a => a.intensity_factor).length || 1)
-        const totalKm = last30.reduce((s, a) => s + (a.distance_meters || 0), 0) / 1000
-        const totalElev = last30.reduce((s, a) => s + (a.elevation_gain || 0), 0)
+        const totalTSS = activities.reduce((s, a) => s + (a.tss || 0), 0)
+        const npRides = activities.filter(a => a.norm_power)
+        const avgNP = npRides.length ? npRides.reduce((s, a) => s + a.norm_power, 0) / npRides.length : 0
+        const ifRides = activities.filter(a => a.intensity_factor)
+        const avgIF = ifRides.length ? ifRides.reduce((s, a) => s + a.intensity_factor, 0) / ifRides.length : 0
+        const totalKm = activities.reduce((s, a) => s + (a.distance_meters || 0), 0) / 1000
+        const totalElev = activities.reduce((s, a) => s + (a.elevation_gain || 0), 0)
         return (
           <div className="flex gap-3 flex-wrap">
-            <StatPill label="30d TSS" value={Math.round(totalTSS)} color="text-blue" />
-            <StatPill label="Avg NP" value={Math.round(avgNP)} unit="W" color="text-purple" />
-            <StatPill label="Avg IF" value={avgIF} color="text-amber" />
-            <StatPill label="30d Distance" value={totalKm.toFixed(0)} unit="km" color="text-green" />
-            <StatPill label="30d Elevation" value={Math.round(totalElev)} unit="m" />
+            <StatPill label={`${preset} TSS`} value={Math.round(totalTSS)} color="text-blue" />
+            <StatPill label="Avg NP" value={npRides.length ? Math.round(avgNP) : null} unit="W" color="text-purple" />
+            <StatPill label="Avg IF" value={ifRides.length ? avgIF : null} color="text-amber" />
+            <StatPill label={`${preset} Distance`} value={totalKm.toFixed(0)} unit="km" color="text-green" />
+            <StatPill label={`${preset} Elevation`} value={Math.round(totalElev)} unit="m" />
             <StatPill label="Best 20m Power" value={bestPower?.['20m']} unit="W" color="text-red" />
             <StatPill label="Best 5m Power" value={bestPower?.['5m']} unit="W" color="text-amber" />
           </div>
@@ -195,7 +219,7 @@ export default function Training() {
       </div>
 
       {/* Training Load chart */}
-      <TrainingLoadChart data={stats.map(r => ({ date: r.date, training_load: r.training_load }))} />
+      <TrainingLoadChart data={aggregateByRange(stats.map(r => ({ date: r.date, training_load: r.training_load, acute_load: r.acute_load })), days)} />
 
       {/* Ride selector + per-ride deep dive */}
       <div className="bg-surface rounded-2xl p-5 border border-border">

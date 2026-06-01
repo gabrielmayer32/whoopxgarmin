@@ -36,7 +36,6 @@ export default function TrainingLoadChart({ data = [] }) {
           <XAxis
             dataKey="date"
             tick={{ fill: '#6b6b8a', fontSize: 11 }}
-            tickFormatter={(v) => v.slice(5)}
           />
           <YAxis tick={{ fill: '#6b6b8a', fontSize: 11 }} />
           <Tooltip content={<CustomTooltip />} />

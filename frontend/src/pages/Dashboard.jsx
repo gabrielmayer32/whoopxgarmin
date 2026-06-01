@@ -7,6 +7,9 @@ import ActivityFeed from '../components/ActivityFeed'
 import StrainRing from '../components/StrainRing'
 import InsightsPanel from '../components/InsightsPanel'
 import CorrelationChart from '../components/CorrelationChart'
+import DateRangeSelector from '../components/DateRangeSelector'
+import useDateRange from '../hooks/useDateRange'
+import aggregateByRange from '../utils/aggregateByRange'
 import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ComposedChart, Line } from 'recharts'
 
 function recoveryColor(score) {
@@ -38,6 +41,7 @@ const ChartTooltip = ({ active, payload, label }) => {
 }
 
 export default function Dashboard() {
+  const { preset, days, startDate, offset, windowLabel, canGoForward, select, goBack, goForward } = useDateRange('1M')
   const [data, setData] = useState(null)
   const [trends, setTrends] = useState([])
   const [correlation, setCorrelation] = useState([])
@@ -46,12 +50,13 @@ export default function Dashboard() {
   const [whoopAuth, setWhoopAuth] = useState(null)
 
   useEffect(() => {
+    setLoading(true)
     Promise.all([
       fetchDashboard(),
-      fetchTrends(14),
+      fetchTrends(days, startDate),
       fetchWhoopStatus(),
-      fetchWhoopGarminCorrelation(60),
-      fetchStrainRecoveryCorrelation(60),
+      fetchWhoopGarminCorrelation(days, startDate),
+      fetchStrainRecoveryCorrelation(days, startDate),
     ])
       .then(([dash, t, ws, corr, sc]) => {
         setData(dash)
@@ -62,40 +67,50 @@ export default function Dashboard() {
       })
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [])
+  }, [days, startDate])
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
 
-  // Correctly lagged strain → next-day recovery
   const recoveryVsTss = strainCorr
 
-  // Overlay: next-day recovery vs training load (lagged by 1 day)
-  // Bar on date D = training load from D; line on date D = recovery score of D+1
-  const overlayData = trends.map((t, i) => {
-    const nextDay = trends[i + 1]
+  const aggregatedTrends = aggregateByRange(trends, days)
+
+  const overlayData = aggregatedTrends.map((t, i) => {
+    const nextDay = aggregatedTrends[i + 1]
     return {
-      date: t.date?.slice(5),
+      date: t.date,
       training_load: t.garmin_training_load,
       next_recovery: nextDay?.whoop_recovery_score ?? null,
     }
-  }).filter((_, i) => i < trends.length - 1) // drop last day (no next-day recovery yet)
+  }).filter((_, i) => i < aggregatedTrends.length - 1)
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 flex flex-col gap-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-semibold">Overview</h1>
           <p className="text-sm text-muted mt-0.5">{today}</p>
         </div>
-        {whoopAuth === false && (
-          <button
-            onClick={() => { window.location.href = 'http://localhost:8000/whoop/login' }}
-            className="px-4 py-2 text-sm font-medium rounded-lg bg-purple/10 text-purple border border-purple/30 hover:bg-purple/20 transition-colors"
-          >
-            Connect WHOOP →
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          <DateRangeSelector
+            preset={preset}
+            offset={offset}
+            windowLabel={windowLabel}
+            canGoForward={canGoForward}
+            onSelect={select}
+            onBack={goBack}
+            onForward={goForward}
+          />
+          {whoopAuth === false && (
+            <button
+              onClick={() => { window.location.href = 'http://localhost:8000/whoop/login' }}
+              className="px-4 py-2 text-sm font-medium rounded-lg bg-purple/10 text-purple border border-purple/30 hover:bg-purple/20 transition-colors"
+            >
+              Connect WHOOP →
+            </button>
+          )}
+        </div>
       </div>
 
       {/* WHOOP vitals — top row */}
@@ -112,7 +127,7 @@ export default function Dashboard() {
       {/* Recovery ↔ Training Load overlay — the core cross-device insight */}
       <div className="bg-surface rounded-2xl p-5 border border-border">
         <div className="mb-4">
-          <h3 className="metric-label">Recovery vs Training Load — 14 Days</h3>
+          <h3 className="metric-label">Recovery vs Training Load</h3>
           <p className="text-xs text-muted mt-0.5">Bar = day's training load → line = next-morning WHOOP recovery</p>
         </div>
         <ResponsiveContainer width="100%" height={220}>
@@ -131,8 +146,8 @@ export default function Dashboard() {
 
       {/* HRV + Sleep side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <HRVChart data={trends} />
-        <SleepChart data={trends} source="whoop" />
+        <HRVChart data={aggregatedTrends} />
+        <SleepChart data={aggregatedTrends} source="whoop" />
       </div>
 
       {/* Scatter correlations */}

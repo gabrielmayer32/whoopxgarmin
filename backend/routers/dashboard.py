@@ -138,9 +138,13 @@ def dashboard(date: str = None):
 
 
 @router.get("/trends")
-def trends(days: int = 7):
+def trends(days: int = 7, start_date: str = None):
     end = _today()
-    start = end - timedelta(days=days - 1)
+    if start_date:
+        start = _date.fromisoformat(start_date)
+        end = start + timedelta(days=days - 1)
+    else:
+        start = end - timedelta(days=days - 1)
     start_str = start.isoformat()
     end_str = end.isoformat()
 
@@ -183,9 +187,13 @@ def trends(days: int = 7):
 
 
 @router.get("/recovery-timeline")
-def recovery_timeline(days: int = 30):
+def recovery_timeline(days: int = 30, start_date: str = None):
     end = _today()
-    start = end - timedelta(days=days - 1)
+    if start_date:
+        start = _date.fromisoformat(start_date)
+        end = start + timedelta(days=days - 1)
+    else:
+        start = end - timedelta(days=days - 1)
     start_str = start.isoformat()
     end_str = end.isoformat()
 
@@ -225,10 +233,14 @@ def training_load_history(days: int = 30):
 
 
 @router.get("/activities")
-def activities_list(days: int = 14):
+def activities_list(days: int = 14, start_date: str = None):
     from backend.database import get_connection
     end = _today()
-    start = end - timedelta(days=days - 1)
+    if start_date:
+        start = _date.fromisoformat(start_date)
+        end = start + timedelta(days=days - 1)
+    else:
+        start = end - timedelta(days=days - 1)
     conn = get_connection()
     try:
         rows = conn.execute(
@@ -241,11 +253,15 @@ def activities_list(days: int = 14):
 
 
 @router.get("/cycling-stats")
-def cycling_stats(days: int = 60):
+def cycling_stats(days: int = 60, start_date: str = None):
     """Per-ride trend data for power, TSS, NP, IF, cadence, VO2."""
     from backend.database import get_connection
     end = _today()
-    start = end - timedelta(days=days - 1)
+    if start_date:
+        start = _date.fromisoformat(start_date)
+        end = start + timedelta(days=days - 1)
+    else:
+        start = end - timedelta(days=days - 1)
     conn = get_connection()
     try:
         rows = conn.execute("""
@@ -269,11 +285,15 @@ def cycling_stats(days: int = 60):
 
 
 @router.get("/power-curve-best")
-def power_curve_best(days: int = 90):
+def power_curve_best(days: int = 90, start_date: str = None):
     """Best power for each duration across all rides in the window."""
     from backend.database import get_connection
     end = _today()
-    start = end - timedelta(days=days - 1)
+    if start_date:
+        start = _date.fromisoformat(start_date)
+        end = start + timedelta(days=days - 1)
+    else:
+        start = end - timedelta(days=days - 1)
     conn = get_connection()
     try:
         row = conn.execute("""
@@ -297,11 +317,15 @@ def power_curve_best(days: int = 90):
 
 
 @router.get("/whoop-garmin-correlation")
-def whoop_garmin_correlation(days: int = 60):
+def whoop_garmin_correlation(days: int = 60, start_date: str = None):
     """Cross-device data: recovery/HRV vs next-ride TSS/power."""
     from backend.database import get_connection
     end = _today()
-    start = end - timedelta(days=days - 1)
+    if start_date:
+        start = _date.fromisoformat(start_date)
+        end = start + timedelta(days=days - 1)
+    else:
+        start = end - timedelta(days=days - 1)
     conn = get_connection()
     try:
         # Get WHOOP recovery data
@@ -342,12 +366,16 @@ def whoop_garmin_correlation(days: int = 60):
 
 
 @router.get("/strain-recovery-correlation")
-def strain_recovery_correlation(days: int = 60):
+def strain_recovery_correlation(days: int = 60, start_date: str = None):
     """Each record: day's strain → NEXT day's recovery score. Correctly lagged."""
     from backend.database import get_connection
     end = _today()
-    # Fetch one extra day at the start so we can look up next-day recovery
-    start = end - timedelta(days=days)
+    if start_date:
+        start = _date.fromisoformat(start_date)
+        end = start + timedelta(days=days)
+    else:
+        # Fetch one extra day at the start so we can look up next-day recovery
+        start = end - timedelta(days=days)
     conn = get_connection()
     try:
         rows = conn.execute(
@@ -375,12 +403,16 @@ def strain_recovery_correlation(days: int = 60):
 
 
 @router.get("/gym-sessions")
-def gym_sessions(days: int = 60):
+def gym_sessions(days: int = 60, start_date: str = None):
     from backend.services.strava_service import get_strava_range, is_authorized
     if not is_authorized():
         return []
     end = _today()
-    start = end - timedelta(days=days - 1)
+    if start_date:
+        start = _date.fromisoformat(start_date)
+        end = start + timedelta(days=days - 1)
+    else:
+        start = end - timedelta(days=days - 1)
     return get_strava_range(start.isoformat(), end.isoformat())
 
 

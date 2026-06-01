@@ -5,6 +5,9 @@ import {
   Tooltip, Legend, ResponsiveContainer, ReferenceLine, ScatterChart, Scatter,
 } from 'recharts'
 import MetricCard from '../components/MetricCard'
+import DateRangeSelector from '../components/DateRangeSelector'
+import useDateRange from '../hooks/useDateRange'
+import aggregateByRange from '../utils/aggregateByRange'
 
 const ChartTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
@@ -21,13 +24,19 @@ const ChartTooltip = ({ active, payload, label }) => {
 }
 
 export default function Recovery() {
+  const { preset, days, startDate, offset, windowLabel, canGoForward, select, goBack, goForward } = useDateRange('1M')
   const [timeline, setTimeline] = useState([])
   const [trends, setTrends] = useState([])
   const [strainCorr, setStrainCorr] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([fetchRecoveryTimeline(30), fetchTrends(30), fetchStrainRecoveryCorrelation(60)])
+    setLoading(true)
+    Promise.all([
+      fetchRecoveryTimeline(days, startDate),
+      fetchTrends(days, startDate),
+      fetchStrainRecoveryCorrelation(days, startDate),
+    ])
       .then(([t, tr, sc]) => {
         setTimeline(t)
         setTrends(tr)
@@ -35,47 +44,132 @@ export default function Recovery() {
       })
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [])
+  }, [days, startDate])
 
-  const latest = timeline[timeline.length - 1] || {}
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const todayEntry = timeline.find(r => r.date === todayIso) || {}
 
   const validRecovery = timeline.filter(r => r.recovery_score)
   const avgRecovery = validRecovery.length
     ? Math.round(validRecovery.reduce((s, r) => s + r.recovery_score, 0) / validRecovery.length)
     : null
+  const maxRecovery = validRecovery.length ? Math.max(...validRecovery.map(r => r.recovery_score)) : null
+  const minRecovery = validRecovery.length ? Math.min(...validRecovery.map(r => r.recovery_score)) : null
 
   const validHrv = timeline.filter(r => r.hrv)
   const avgHrv = validHrv.length
     ? parseFloat((validHrv.reduce((s, r) => s + r.hrv, 0) / validHrv.length).toFixed(1))
     : null
+  const maxHrv = validHrv.length ? Math.max(...validHrv.map(r => r.hrv)) : null
+  const minHrv = validHrv.length ? Math.min(...validHrv.map(r => r.hrv)) : null
 
-  // Correctly lagged: each point is day's strain → NEXT day's recovery
+  const isCurrent = offset === 0
+
   const correlationData = strainCorr
+  const aggTimeline = aggregateByRange(timeline, days)
+  const aggTrends = aggregateByRange(trends, days)
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 flex flex-col gap-6">
-      <h1 className="text-xl font-semibold">Recovery</h1>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h1 className="text-xl font-semibold">Recovery</h1>
+        <DateRangeSelector
+          preset={preset}
+          offset={offset}
+          windowLabel={windowLabel}
+          canGoForward={canGoForward}
+          onSelect={select}
+          onBack={goBack}
+          onForward={goForward}
+        />
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard label="Today's Recovery" value={latest.recovery_score} unit="%"
-          source="whoop"
-          color={latest.recovery_score >= 67 ? 'green' : latest.recovery_score >= 34 ? 'amber' : 'red'}
-          loading={loading} />
-        <MetricCard label="30-Day Avg Recovery" value={avgRecovery} unit="%" source="whoop" loading={loading} />
-        <MetricCard label="Today's HRV" value={latest.hrv?.toFixed(1)} unit="ms" source="whoop" loading={loading} />
-        <MetricCard label="30-Day Avg HRV" value={avgHrv} unit="ms" source="whoop" loading={loading} />
+        {isCurrent ? (
+          <>
+            <MetricCard
+              label="Today's Recovery"
+              value={todayEntry.recovery_score}
+              unit="%"
+              source="whoop"
+              color={todayEntry.recovery_score >= 67 ? 'green' : todayEntry.recovery_score >= 34 ? 'amber' : 'red'}
+              sub={avgRecovery != null ? `${preset} avg ${avgRecovery}%` : undefined}
+              loading={loading}
+            />
+            <MetricCard
+              label={`${preset} Avg Recovery`}
+              value={avgRecovery}
+              unit="%"
+              source="whoop"
+              sub={maxRecovery != null ? `↑ ${maxRecovery}%  ↓ ${minRecovery}%` : undefined}
+              loading={loading}
+            />
+            <MetricCard
+              label="Today's HRV"
+              value={todayEntry.hrv != null ? +todayEntry.hrv.toFixed(1) : null}
+              unit="ms"
+              source="whoop"
+              sub={avgHrv != null ? `${preset} avg ${avgHrv} ms` : undefined}
+              loading={loading}
+            />
+            <MetricCard
+              label={`${preset} Avg HRV`}
+              value={avgHrv}
+              unit="ms"
+              source="whoop"
+              sub={maxHrv != null ? `↑ ${maxHrv.toFixed(1)}  ↓ ${minHrv.toFixed(1)} ms` : undefined}
+              loading={loading}
+            />
+          </>
+        ) : (
+          <>
+            <MetricCard
+              label="Avg Recovery"
+              value={avgRecovery}
+              unit="%"
+              source="whoop"
+              color={avgRecovery >= 67 ? 'green' : avgRecovery >= 34 ? 'amber' : avgRecovery != null ? 'red' : null}
+              sub={maxRecovery != null ? `↑ ${maxRecovery}%  ↓ ${minRecovery}%` : undefined}
+              loading={loading}
+            />
+            <MetricCard
+              label="Days Tracked"
+              value={validRecovery.length || null}
+              source="whoop"
+              sub={windowLabel}
+              loading={loading}
+            />
+            <MetricCard
+              label="Avg HRV"
+              value={avgHrv}
+              unit="ms"
+              source="whoop"
+              sub={maxHrv != null ? `↑ ${maxHrv.toFixed(1)}  ↓ ${minHrv.toFixed(1)} ms` : undefined}
+              loading={loading}
+            />
+            <MetricCard
+              label="Best Recovery"
+              value={maxRecovery}
+              unit="%"
+              source="whoop"
+              color={maxRecovery >= 67 ? 'green' : maxRecovery >= 34 ? 'amber' : maxRecovery != null ? 'red' : null}
+              sub={maxHrv != null ? `Best HRV ${maxHrv.toFixed(1)} ms` : undefined}
+              loading={loading}
+            />
+          </>
+        )}
       </div>
 
       {/* Recovery timeline */}
       <div className="bg-surface rounded-2xl p-5 border border-border">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="metric-label">30-Day Recovery Timeline</h3>
+          <h3 className="metric-label">Recovery Timeline</h3>
           <span className="text-xs font-medium text-purple">WHOOP</span>
         </div>
         <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={timeline} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+          <BarChart data={aggTimeline} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" />
-            <XAxis dataKey="date" tick={{ fill: '#6b6b8a', fontSize: 10 }} tickFormatter={(v) => v.slice(5)} />
+            <XAxis dataKey="date" tick={{ fill: '#6b6b8a', fontSize: 10 }} />
             <YAxis tick={{ fill: '#6b6b8a', fontSize: 11 }} domain={[0, 100]} />
             <Tooltip content={<ChartTooltip />} />
             <ReferenceLine y={67} stroke="#00e5a0" strokeDasharray="4 4" strokeOpacity={0.5} />
@@ -92,9 +186,9 @@ export default function Recovery() {
           <span className="text-xs font-medium text-purple">WHOOP</span>
         </div>
         <ResponsiveContainer width="100%" height={200}>
-          <LineChart data={trends} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+          <LineChart data={aggTrends} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" />
-            <XAxis dataKey="date" tick={{ fill: '#6b6b8a', fontSize: 10 }} tickFormatter={(v) => v.slice(5)} />
+            <XAxis dataKey="date" tick={{ fill: '#6b6b8a', fontSize: 10 }} />
             <YAxis tick={{ fill: '#6b6b8a', fontSize: 11 }} domain={['auto', 'auto']} />
             <Tooltip content={<ChartTooltip />} />
             <Line type="monotone" dataKey="whoop_hrv" name="HRV (ms)" stroke="#b44aff" strokeWidth={2} dot={false} connectNulls />
@@ -109,9 +203,9 @@ export default function Recovery() {
           <span className="text-xs font-medium text-purple">WHOOP</span>
         </div>
         <ResponsiveContainer width="100%" height={180}>
-          <LineChart data={trends} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+          <LineChart data={aggTrends} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" />
-            <XAxis dataKey="date" tick={{ fill: '#6b6b8a', fontSize: 10 }} tickFormatter={(v) => v.slice(5)} />
+            <XAxis dataKey="date" tick={{ fill: '#6b6b8a', fontSize: 10 }} />
             <YAxis tick={{ fill: '#6b6b8a', fontSize: 11 }} domain={[0, 100]} />
             <Tooltip content={<ChartTooltip />} />
             <ReferenceLine y={85} stroke="#00e5a0" strokeDasharray="4 4" strokeOpacity={0.5} />

@@ -29,7 +29,6 @@ export default function HRVChart({ data = [] }) {
           <XAxis
             dataKey="date"
             tick={{ fill: '#6b6b8a', fontSize: 11 }}
-            tickFormatter={(v) => v.slice(5)}
           />
           <YAxis tick={{ fill: '#6b6b8a', fontSize: 11 }} domain={['auto', 'auto']} />
           <Tooltip content={<CustomTooltip />} />
