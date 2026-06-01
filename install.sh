@@ -150,17 +150,23 @@ cat > "$LAUNCH_AGENT_APP" <<EOF
     <string>com.gabrielmayer.whoopxgarmin</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/bash</string>
-        <string>$INSTALL_DIR/deploy.sh</string>
+        <string>$INSTALL_DIR/venv/bin/uvicorn</string>
+        <string>backend.main:app</string>
+        <string>--host</string>
+        <string>0.0.0.0</string>
+        <string>--port</string>
+        <string>$APP_PORT</string>
     </array>
+    <key>WorkingDirectory</key>
+    <string>$INSTALL_DIR</string>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
-    <false/>
+    <true/>
     <key>StandardOutPath</key>
-    <string>$LOG_DIR/launchagent.log</string>
+    <string>$LOG_DIR/app.log</string>
     <key>StandardErrorPath</key>
-    <string>$LOG_DIR/launchagent.log</string>
+    <string>$LOG_DIR/app.log</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>HOME</key>
