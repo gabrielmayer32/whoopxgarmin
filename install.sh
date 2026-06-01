@@ -40,12 +40,30 @@ fi
 
 # ── Credentials ───────────────────────────────────────────────────────────────
 
-echo "Please enter your credentials (they are stored only on your Mac):"
+echo "── Step 1: Garmin credentials ───────────────────────────────────────────"
 echo ""
 read -p "  Garmin email:    " GARMIN_EMAIL
 read -sp "  Garmin password: " GARMIN_PASSWORD
 echo ""
-read -p "  Whoop Client ID (leave blank to skip Whoop): " WHOOP_CLIENT_ID
+echo ""
+
+echo "── Step 2: Whoop API credentials ────────────────────────────────────────"
+echo ""
+echo "  You need a free Whoop developer app to connect your Whoop account."
+echo "  This takes about 2 minutes:"
+echo ""
+echo "  1. Go to: https://developer.whoop.com"
+echo "  2. Sign in with your Whoop account"
+echo "  3. Click \"Create New Application\""
+echo "  4. Fill in:"
+echo "       Name:         Whoop x Garmin Dashboard"
+echo "       Redirect URI: http://localhost:${APP_PORT}/whoop/callback"
+echo "  5. Copy the Client ID and Client Secret shown after creation"
+echo ""
+echo "  Once you have them, come back here and paste them below."
+echo "  (Leave blank to skip Whoop and use Garmin only)"
+echo ""
+read -p "  Whoop Client ID:     " WHOOP_CLIENT_ID
 if [ -n "$WHOOP_CLIENT_ID" ]; then
     read -sp "  Whoop Client Secret: " WHOOP_CLIENT_SECRET
     echo ""
