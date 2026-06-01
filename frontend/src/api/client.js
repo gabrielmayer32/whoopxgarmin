@@ -47,6 +47,12 @@ export const triggerSync = () =>
 export const triggerBackfill = (days = 90) =>
   axios.post('/api/backfill', null, { params: { days } }).then((r) => r.data)
 
+export const triggerBackfillFromDate = (startDate) =>
+  axios.post('/api/backfill', null, { params: { start_date: startDate } }).then((r) => r.data)
+
+export const fetchBackfillStatus = () =>
+  axios.get('/api/backfill/status').then((r) => r.data)
+
 export const fetchWhoopStatus = () =>
   axios.get('/whoop/status').then((r) => r.data)
 

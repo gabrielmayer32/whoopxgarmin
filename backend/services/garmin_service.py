@@ -244,11 +244,28 @@ def _sync_garmin_activities(client: Garmin, target_date: date):
 
 def backfill_garmin(days: int = 90):
     today = date.today()
-    for i in range(days):
-        target = today - timedelta(days=i)
-        logger.info(f"Backfilling Garmin {target}")
-        sync_garmin_day(target)
-        time.sleep(1)
+    start = today - timedelta(days=days)
+    backfill_garmin_from_date(start, today)
+
+
+def backfill_garmin_from_date(start: date, end: date = None, progress_callback=None):
+    """Sync every day from start to end (inclusive), oldest-first.
+    progress_callback(done, total) is called after each day if provided."""
+    if end is None:
+        end = date.today()
+    total_days = (end - start).days + 1
+    logger.info(f"Garmin backfill: {start} → {end} ({total_days} days)")
+    for i in range(total_days):
+        target = start + timedelta(days=i)
+        logger.info(f"Garmin backfill [{i+1}/{total_days}]: {target}")
+        try:
+            sync_garmin_day(target)
+        except Exception as e:
+            logger.error(f"Garmin backfill error on {target}: {e}", exc_info=True)
+        if progress_callback:
+            progress_callback(i + 1, total_days)
+        # Longer sleep for large backfills to avoid Garmin rate-limiting
+        time.sleep(2 if total_days > 90 else 1)
 
 
 def get_garmin_daily(target_date: str) -> Optional[dict]:

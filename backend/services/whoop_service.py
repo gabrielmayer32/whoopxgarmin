@@ -312,7 +312,38 @@ def sync_whoop_range(start: date, end: date):
 def backfill_whoop(days: int = 90):
     end = date.today()
     start = end - timedelta(days=days)
-    sync_whoop_range(start, end)
+    backfill_whoop_from_date(start, end)
+
+
+def backfill_whoop_from_date(start: date, end: date = None, progress_callback=None):
+    """Sync WHOOP data from start to end in monthly chunks to avoid API timeouts.
+    progress_callback(done, total_months) is called after each chunk if provided."""
+    if end is None:
+        end = date.today()
+    logger.info(f"WHOOP backfill: {start} → {end}")
+
+    # Break into monthly chunks — large ranges cause WHOOP pagination to be slow
+    chunks = []
+    cursor = start
+    while cursor <= end:
+        # End of this month or overall end, whichever is sooner
+        if cursor.month == 12:
+            month_end = date(cursor.year + 1, 1, 1) - timedelta(days=1)
+        else:
+            month_end = date(cursor.year, cursor.month + 1, 1) - timedelta(days=1)
+        chunk_end = min(month_end, end)
+        chunks.append((cursor, chunk_end))
+        cursor = chunk_end + timedelta(days=1)
+
+    for i, (chunk_start, chunk_end) in enumerate(chunks):
+        logger.info(f"WHOOP backfill [{i+1}/{len(chunks)}]: {chunk_start} → {chunk_end}")
+        try:
+            sync_whoop_range(chunk_start, chunk_end)
+        except Exception as e:
+            logger.error(f"WHOOP backfill error on chunk {chunk_start}→{chunk_end}: {e}", exc_info=True)
+        if progress_callback:
+            progress_callback(i + 1, len(chunks))
+        time.sleep(2)
 
 
 def get_whoop_cycle(target_date: str) -> Optional[dict]:

@@ -1,11 +1,13 @@
 import { NavLink } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { triggerSync, fetchStravaStatus } from '../api/client'
+import HistoryBackfillModal from './HistoryBackfillModal'
 
 export default function Navbar() {
   const [syncing, setSyncing] = useState(false)
   const [synced, setSynced] = useState(false)
   const [stravaAuth, setStravaAuth] = useState(true)
+  const [showBackfill, setShowBackfill] = useState(false)
 
   useEffect(() => {
     fetchStravaStatus().then(s => setStravaAuth(s.authorized)).catch(() => {})
@@ -39,7 +41,7 @@ export default function Navbar() {
             <NavLink to="/training" className={linkClass}>Training</NavLink>
           </div>
         </div>
-        {!stravaAuth && (
+        {/* {!stravaAuth && (
           <button
             onClick={() => { window.location.href = 'http://localhost:8000/strava/login' }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 transition-colors"
@@ -49,7 +51,19 @@ export default function Navbar() {
             </svg>
             Connect Strava
           </button>
-        )}
+        )} */}
+        <div className="flex items-center gap-2">
+        <button
+          onClick={() => setShowBackfill(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border hover:border-muted text-muted hover:text-white transition-colors"
+          title="Import full history from a past date"
+        >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+          </svg>
+          Import History
+        </button>
         <button
           onClick={handleSync}
           disabled={syncing}
@@ -68,7 +82,9 @@ export default function Navbar() {
           )}
           {synced ? 'Synced!' : syncing ? 'Syncing...' : 'Sync'}
         </button>
+        </div>
       </div>
+      {showBackfill && <HistoryBackfillModal onClose={() => setShowBackfill(false)} />}
     </nav>
   )
 }

@@ -189,6 +189,7 @@ MIGRATIONS = [
     "ALTER TABLE garmin_activities ADD COLUMN max_avg_power_20 REAL",
     "ALTER TABLE garmin_activities ADD COLUMN max_avg_power_60 REAL",
     "ALTER TABLE garmin_activities ADD COLUMN max_avg_power_300 REAL",
+    "ALTER TABLE garmin_activities ADD COLUMN max_avg_power_600 REAL",
     "ALTER TABLE garmin_activities ADD COLUMN max_avg_power_1200 REAL",
     "ALTER TABLE garmin_activities ADD COLUMN max_avg_power_3600 REAL",
 ]
