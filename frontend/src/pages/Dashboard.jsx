@@ -1,3 +1,4 @@
+import { colors } from '../colors.js'
 import { useEffect, useState } from 'react'
 import { fetchDashboard, fetchTrends, fetchWhoopStatus, fetchWhoopGarminCorrelation, fetchStrainRecoveryCorrelation, fetchRecoveryPrediction } from '../api/client'
 import MetricCard from '../components/MetricCard'
@@ -146,14 +147,14 @@ export default function Dashboard() {
         </div>
         <ResponsiveContainer width="100%" height={220}>
           <ComposedChart data={overlayData} margin={{ top: 5, right: 40, left: -20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" />
-            <XAxis dataKey="date" tick={{ fill: '#6b6b8a', fontSize: 10 }} />
-            <YAxis yAxisId="recovery" tick={{ fill: '#6b6b8a', fontSize: 11 }} domain={[0, 100]} />
-            <YAxis yAxisId="load" orientation="right" tick={{ fill: '#6b6b8a', fontSize: 11 }} />
+            <CartesianGrid strokeDasharray="3 3" stroke={colors.border} />
+            <XAxis dataKey="date" tick={{ fill: colors.muted, fontSize: 10 }} />
+            <YAxis yAxisId="recovery" tick={{ fill: colors.muted, fontSize: 11 }} domain={[0, 100]} />
+            <YAxis yAxisId="load" orientation="right" tick={{ fill: colors.muted, fontSize: 11 }} />
             <Tooltip content={<ChartTooltip />} />
-            <Legend formatter={(v) => <span style={{ color: '#6b6b8a', fontSize: 12 }}>{v}</span>} />
-            <Bar yAxisId="load" dataKey="training_load" name="Training Load" fill="#4a9eff18" stroke="#4a9eff55" strokeWidth={1} radius={[2, 2, 0, 0]} />
-            <Line yAxisId="recovery" type="monotone" dataKey="next_recovery" name="Next-day Recovery %" stroke="#b44aff" strokeWidth={2} dot={{ r: 3, fill: '#b44aff' }} connectNulls />
+            <Legend formatter={(v) => <span style={{ color: colors.muted, fontSize: 12 }}>{v}</span>} />
+            <Bar yAxisId="load" dataKey="training_load" name="Training Load" fill={colors.blue + "18"} stroke={colors.blue + "55"} strokeWidth={1} radius={[2, 2, 0, 0]} />
+            <Line yAxisId="recovery" type="monotone" dataKey="next_recovery" name="Next-day Recovery %" stroke={colors.purple} strokeWidth={2} dot={{ r: 3, fill: colors.purple }} connectNulls />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -172,7 +173,7 @@ export default function Dashboard() {
           yKey="next_day_recovery"
           xLabel="Strain"
           yLabel="Next-day Recovery %"
-          color="#b44aff"
+          color={colors.purple}
           title="Strain → Next-Day Recovery"
           subtitle="Each point = day's strain vs the following morning's recovery"
         />
@@ -182,7 +183,7 @@ export default function Dashboard() {
           yKey="tss"
           xLabel="HRV (ms)"
           yLabel="TSS"
-          color="#4a9eff"
+          color={colors.blue}
           title="HRV → Ride Load"
           subtitle="Do you push harder on high-HRV mornings?"
         />

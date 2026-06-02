@@ -180,11 +180,17 @@ def trends(days: int = 7, start_date: str = None):
             "garmin_training_load": g.get("training_load"),
             "steps": g.get("steps"),
             "garmin_sleep_hours": _sec_to_h(g.get("sleep_duration_seconds")),
-            "whoop_sleep_hours": _sec_to_h(ws.get("duration_seconds")),
+            # Use sum of stages (excludes awake time) so chart total matches displayed sleep time
+            "whoop_sleep_hours": _sec_to_h(
+                (ws.get("deep_seconds") or 0) +
+                (ws.get("rem_seconds") or 0) +
+                (ws.get("light_seconds") or 0)
+            ),
             "garmin_deep_hours": _sec_to_h(g.get("sleep_deep_seconds")),
             "garmin_rem_hours": _sec_to_h(g.get("sleep_rem_seconds")),
             "whoop_deep_hours": _sec_to_h(ws.get("deep_seconds")),
             "whoop_rem_hours": _sec_to_h(ws.get("rem_seconds")),
+            "whoop_light_hours": _sec_to_h(ws.get("light_seconds")),
         })
         d += timedelta(days=1)
 

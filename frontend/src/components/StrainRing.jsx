@@ -1,3 +1,4 @@
+import { colors } from '../colors.js'
 export default function StrainRing({ strain }) {
   const maxStrain = 21
   const pct = strain != null ? Math.min(strain / maxStrain, 1) : 0
@@ -6,17 +7,17 @@ export default function StrainRing({ strain }) {
   const offset = circ * (1 - pct)
 
   const color =
-    strain == null ? '#2a2a3a' :
-    strain < 10 ? '#00e5a0' :
-    strain < 15 ? '#f5a623' :
-    '#ff4757'
+    strain == null ? colors.border :
+    strain < 10 ? colors.green :
+    strain < 15 ? colors.amber :
+    colors.red
 
   return (
     <div className="bg-surface rounded-2xl p-5 border border-border flex flex-col items-center gap-3">
       <span className="metric-label">WHOOP Strain</span>
       <div className="relative w-24 h-24">
         <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-          <circle cx="50" cy="50" r={r} fill="none" stroke="#2a2a3a" strokeWidth="10" />
+          <circle cx="50" cy="50" r={r} fill="none" stroke={colors.border} strokeWidth="10" />
           <circle
             cx="50"
             cy="50"

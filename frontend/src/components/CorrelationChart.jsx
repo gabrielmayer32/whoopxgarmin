@@ -1,6 +1,7 @@
+import { colors } from '../colors.js'
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 
-export default function CorrelationChart({ data = [], xKey, yKey, xLabel, yLabel, color = '#b44aff', title, subtitle }) {
+export default function CorrelationChart({ data = [], xKey, yKey, xLabel, yLabel, color = colors.purple, title, subtitle }) {
   const filtered = data.filter(d => d[xKey] != null && d[yKey] != null)
 
   return (
@@ -14,20 +15,20 @@ export default function CorrelationChart({ data = [], xKey, yKey, xLabel, yLabel
       ) : (
         <ResponsiveContainer width="100%" height={200}>
           <ScatterChart margin={{ top: 5, right: 10, left: -10, bottom: 20 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" />
+            <CartesianGrid strokeDasharray="3 3" stroke={colors.border} />
             <XAxis
               dataKey={xKey}
               name={xLabel}
               type="number"
-              tick={{ fill: '#6b6b8a', fontSize: 11 }}
-              label={{ value: xLabel, fill: '#6b6b8a', fontSize: 11, position: 'insideBottom', offset: -10 }}
+              tick={{ fill: colors.muted, fontSize: 11 }}
+              label={{ value: xLabel, fill: colors.muted, fontSize: 11, position: 'insideBottom', offset: -10 }}
             />
             <YAxis
               dataKey={yKey}
               name={yLabel}
               type="number"
-              tick={{ fill: '#6b6b8a', fontSize: 11 }}
-              label={{ value: yLabel, fill: '#6b6b8a', fontSize: 11, angle: -90, position: 'insideLeft', offset: 15 }}
+              tick={{ fill: colors.muted, fontSize: 11 }}
+              label={{ value: yLabel, fill: colors.muted, fontSize: 11, angle: -90, position: 'insideLeft', offset: 15 }}
             />
             <Tooltip cursor={{ strokeDasharray: '3 3' }} content={({ active, payload }) => {
               if (!active || !payload?.length) return null

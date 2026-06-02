@@ -1,3 +1,4 @@
+import { colors } from '../colors.js'
 import React, { useEffect, useState } from 'react'
 import { fetchCyclingStats, fetchPowerCurveBest, fetchActivities, fetchGymSessions } from '../api/client'
 import TrainingLoadChart from '../components/TrainingLoadChart'
@@ -54,9 +55,9 @@ function StatPill({ label, value, unit, color = 'text-white' }) {
   )
 }
 
-const HR_ZONE_COLORS = ['#4a9eff', '#00e5a0', '#f5a623', '#ff8c42', '#ff4757']
+const HR_ZONE_COLORS = [colors.blue, colors.green, colors.amber, colors.amber, colors.red]
 const HR_ZONE_NAMES = ['Z1', 'Z2', 'Z3', 'Z4', 'Z5']
-const POWER_ZONE_COLORS = ['#2a3a5a', '#1a4a6a', '#4a9eff', '#00c8a0', '#f5a623', '#ff8c42', '#ff4757']
+const POWER_ZONE_COLORS = [colors.surface2, colors.border, colors.blue, colors.green, colors.amber, colors.amber, colors.red]
 
 export default function Training() {
   const { preset, days, startDate, offset, windowLabel, canGoForward, select, goBack, goForward } = useDateRange('3M')
@@ -163,13 +164,13 @@ export default function Training() {
         </div>
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={tssData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" />
-            <XAxis dataKey="date" tick={{ fill: '#6b6b8a', fontSize: 10 }} />
-            <YAxis tick={{ fill: '#6b6b8a', fontSize: 11 }} />
+            <CartesianGrid strokeDasharray="3 3" stroke={colors.border} />
+            <XAxis dataKey="date" tick={{ fill: colors.muted, fontSize: 10 }} />
+            <YAxis tick={{ fill: colors.muted, fontSize: 11 }} />
             <Tooltip content={<Tooltip_ />} />
-            <ReferenceLine y={150} stroke="#ff4757" strokeDasharray="4 4" strokeOpacity={0.5} />
-            <ReferenceLine y={50} stroke="#00e5a0" strokeDasharray="4 4" strokeOpacity={0.5} />
-            <Bar dataKey="tss" name="TSS" fill="#4a9eff" radius={[3, 3, 0, 0]} maxBarSize={24} />
+            <ReferenceLine y={150} stroke={colors.red} strokeDasharray="4 4" strokeOpacity={0.5} />
+            <ReferenceLine y={50} stroke={colors.green} strokeDasharray="4 4" strokeOpacity={0.5} />
+            <Bar dataKey="tss" name="TSS" fill={colors.blue} radius={[3, 3, 0, 0]} maxBarSize={24} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -182,13 +183,13 @@ export default function Training() {
         </div>
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={powerData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" />
-            <XAxis dataKey="date" tick={{ fill: '#6b6b8a', fontSize: 10 }} />
-            <YAxis tick={{ fill: '#6b6b8a', fontSize: 11 }} domain={['auto', 'auto']} />
+            <CartesianGrid strokeDasharray="3 3" stroke={colors.border} />
+            <XAxis dataKey="date" tick={{ fill: colors.muted, fontSize: 10 }} />
+            <YAxis tick={{ fill: colors.muted, fontSize: 11 }} domain={['auto', 'auto']} />
             <Tooltip content={<Tooltip_ />} />
-            <Legend formatter={(v) => <span style={{ color: '#6b6b8a', fontSize: 12 }}>{v}</span>} />
-            <Line type="monotone" dataKey="np" name="NP (W)" stroke="#b44aff" strokeWidth={2} dot={{ r: 3, fill: '#b44aff' }} connectNulls />
-            <Line type="monotone" dataKey="avg" name="Avg Power (W)" stroke="#4a9eff" strokeWidth={2} dot={{ r: 3, fill: '#4a9eff' }} connectNulls />
+            <Legend formatter={(v) => <span style={{ color: colors.muted, fontSize: 12 }}>{v}</span>} />
+            <Line type="monotone" dataKey="np" name="NP (W)" stroke={colors.purple} strokeWidth={2} dot={{ r: 3, fill: colors.purple }} connectNulls />
+            <Line type="monotone" dataKey="avg" name="Avg Power (W)" stroke={colors.blue} strokeWidth={2} dot={{ r: 3, fill: colors.blue }} connectNulls />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -366,9 +367,9 @@ export default function Training() {
                                       <p className="metric-label mb-3">HR Zone Distribution</p>
                                       <ResponsiveContainer width="100%" height={180}>
                                         <BarChart data={rideHrZones} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
-                                          <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" horizontal={false} />
-                                          <XAxis type="number" tick={{ fill: '#6b6b8a', fontSize: 11 }} unit="m" />
-                                          <YAxis type="category" dataKey="name" tick={{ fill: '#6b6b8a', fontSize: 11 }} width={28} />
+                                          <CartesianGrid strokeDasharray="3 3" stroke={colors.border} horizontal={false} />
+                                          <XAxis type="number" tick={{ fill: colors.muted, fontSize: 11 }} unit="m" />
+                                          <YAxis type="category" dataKey="name" tick={{ fill: colors.muted, fontSize: 11 }} width={28} />
                                           <Tooltip content={<Tooltip_ />} />
                                           <Bar dataKey="minutes" name="Minutes" radius={[0, 4, 4, 0]}>
                                             {rideHrZones.map((entry, i) => <rect key={i} fill={entry.fill} />)}

@@ -1,6 +1,7 @@
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
+import { colors } from '../colors.js'
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
@@ -25,20 +26,20 @@ export default function HRVChart({ data = [] }) {
       </div>
       <ResponsiveContainer width="100%" height={200}>
         <LineChart data={data} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" />
+          <CartesianGrid strokeDasharray="3 3" stroke={colors.border} />
           <XAxis
             dataKey="date"
-            tick={{ fill: '#6b6b8a', fontSize: 11 }}
+            tick={{ fill: colors.muted, fontSize: 11 }}
           />
-          <YAxis tick={{ fill: '#6b6b8a', fontSize: 11 }} domain={['auto', 'auto']} />
+          <YAxis tick={{ fill: colors.muted, fontSize: 11 }} domain={['auto', 'auto']} />
           <Tooltip content={<CustomTooltip />} />
           <Line
             type="monotone"
             dataKey="whoop_hrv"
             name="HRV"
-            stroke="#b44aff"
+            stroke={colors.purple}
             strokeWidth={2}
-            dot={{ fill: '#b44aff', r: 3 }}
+            dot={{ fill: colors.purple, r: 3 }}
             connectNulls
           />
         </LineChart>

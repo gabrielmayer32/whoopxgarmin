@@ -1,3 +1,4 @@
+import { colors } from '../colors.js'
 import { useEffect, useState } from 'react'
 import { fetchRecoveryTimeline, fetchTrends, fetchStrainRecoveryCorrelation } from '../api/client'
 import {
@@ -168,13 +169,13 @@ export default function Recovery() {
         </div>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={aggTimeline} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" />
-            <XAxis dataKey="date" tick={{ fill: '#6b6b8a', fontSize: 10 }} />
-            <YAxis tick={{ fill: '#6b6b8a', fontSize: 11 }} domain={[0, 100]} />
+            <CartesianGrid strokeDasharray="3 3" stroke={colors.border} />
+            <XAxis dataKey="date" tick={{ fill: colors.muted, fontSize: 10 }} />
+            <YAxis tick={{ fill: colors.muted, fontSize: 11 }} domain={[0, 100]} />
             <Tooltip content={<ChartTooltip />} />
-            <ReferenceLine y={67} stroke="#00e5a0" strokeDasharray="4 4" strokeOpacity={0.5} />
-            <ReferenceLine y={34} stroke="#f5a623" strokeDasharray="4 4" strokeOpacity={0.5} />
-            <Bar dataKey="recovery_score" name="Recovery %" fill="#b44aff" radius={[3, 3, 0, 0]} maxBarSize={20} />
+            <ReferenceLine y={67} stroke={colors.green} strokeDasharray="4 4" strokeOpacity={0.5} />
+            <ReferenceLine y={34} stroke={colors.amber} strokeDasharray="4 4" strokeOpacity={0.5} />
+            <Bar dataKey="recovery_score" name="Recovery %" fill={colors.purple} radius={[3, 3, 0, 0]} maxBarSize={20} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -187,11 +188,11 @@ export default function Recovery() {
         </div>
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={aggTrends} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" />
-            <XAxis dataKey="date" tick={{ fill: '#6b6b8a', fontSize: 10 }} />
-            <YAxis tick={{ fill: '#6b6b8a', fontSize: 11 }} domain={['auto', 'auto']} />
+            <CartesianGrid strokeDasharray="3 3" stroke={colors.border} />
+            <XAxis dataKey="date" tick={{ fill: colors.muted, fontSize: 10 }} />
+            <YAxis tick={{ fill: colors.muted, fontSize: 11 }} domain={['auto', 'auto']} />
             <Tooltip content={<ChartTooltip />} />
-            <Line type="monotone" dataKey="whoop_hrv" name="HRV (ms)" stroke="#b44aff" strokeWidth={2} dot={false} connectNulls />
+            <Line type="monotone" dataKey="whoop_hrv" name="HRV (ms)" stroke={colors.purple} strokeWidth={2} dot={false} connectNulls />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -204,12 +205,12 @@ export default function Recovery() {
         </div>
         <ResponsiveContainer width="100%" height={180}>
           <LineChart data={aggTrends} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" />
-            <XAxis dataKey="date" tick={{ fill: '#6b6b8a', fontSize: 10 }} />
-            <YAxis tick={{ fill: '#6b6b8a', fontSize: 11 }} domain={[0, 100]} />
+            <CartesianGrid strokeDasharray="3 3" stroke={colors.border} />
+            <XAxis dataKey="date" tick={{ fill: colors.muted, fontSize: 10 }} />
+            <YAxis tick={{ fill: colors.muted, fontSize: 11 }} domain={[0, 100]} />
             <Tooltip content={<ChartTooltip />} />
-            <ReferenceLine y={85} stroke="#00e5a0" strokeDasharray="4 4" strokeOpacity={0.5} />
-            <Line type="monotone" dataKey="whoop_sleep_performance" name="Sleep %" stroke="#b44aff" strokeWidth={2} dot={false} connectNulls />
+            <ReferenceLine y={85} stroke={colors.green} strokeDasharray="4 4" strokeOpacity={0.5} />
+            <Line type="monotone" dataKey="whoop_sleep_performance" name="Sleep %" stroke={colors.purple} strokeWidth={2} dot={false} connectNulls />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -224,10 +225,10 @@ export default function Recovery() {
           <p className="text-xs text-muted mb-4">Each point = day's strain vs the following morning's recovery score</p>
           <ResponsiveContainer width="100%" height={220}>
             <ScatterChart margin={{ top: 5, right: 10, left: -20, bottom: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" />
-              <XAxis dataKey="strain" name="Strain" type="number" tick={{ fill: '#6b6b8a', fontSize: 11 }}
-                label={{ value: 'Strain', fill: '#6b6b8a', fontSize: 11, position: 'insideBottom', offset: -10 }} />
-              <YAxis dataKey="next_day_recovery" name="Next-day Recovery %" type="number" tick={{ fill: '#6b6b8a', fontSize: 11 }} domain={[0, 100]} />
+              <CartesianGrid strokeDasharray="3 3" stroke={colors.border} />
+              <XAxis dataKey="strain" name="Strain" type="number" tick={{ fill: colors.muted, fontSize: 11 }}
+                label={{ value: 'Strain', fill: colors.muted, fontSize: 11, position: 'insideBottom', offset: -10 }} />
+              <YAxis dataKey="next_day_recovery" name="Next-day Recovery %" type="number" tick={{ fill: colors.muted, fontSize: 11 }} domain={[0, 100]} />
               <Tooltip cursor={{ strokeDasharray: '3 3' }} content={({ active, payload }) => {
                 if (!active || !payload?.length) return null
                 const d = payload[0]?.payload
@@ -239,7 +240,7 @@ export default function Recovery() {
                   </div>
                 )
               }} />
-              <Scatter data={correlationData} fill="#b44aff" fillOpacity={0.75} />
+              <Scatter data={correlationData} fill={colors.purple} fillOpacity={0.75} />
             </ScatterChart>
           </ResponsiveContainer>
         </div>

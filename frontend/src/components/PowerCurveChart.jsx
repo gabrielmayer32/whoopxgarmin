@@ -1,3 +1,4 @@
+import { colors } from '../colors.js'
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { line as d3line, curveCatmullRom } from 'd3-shape'
 import { scaleLog, scaleLinear } from 'd3-scale'
@@ -40,7 +41,7 @@ function interpolateAtX(points, xVal) {
   return null
 }
 
-export default function PowerCurveChart({ data, compareLabel, colors = {} }) {
+export default function PowerCurveChart({ data, compareLabel, seriesColors = {} }) {
   const svgRef = useRef(null)
   const containerRef = useRef(null)
   const [cursor, setCursor] = useState(null) // {svgX, sec, values}
@@ -59,9 +60,9 @@ export default function PowerCurveChart({ data, compareLabel, colors = {} }) {
 
   // Build series — filter null values per series
   const series = [
-    { key: 'power', label: 'This ride', color: colors.power || '#b44aff' },
-    compareLabel ? { key: 'compare', label: compareLabel, color: colors.compare || '#f5a623' } : null,
-    { key: 'best', label: '90d best', color: colors.best || '#4a9eff' },
+    { key: 'power', label: 'This ride', color: seriesColors.power || colors.purple },
+    compareLabel ? { key: 'compare', label: compareLabel, color: seriesColors.compare || colors.amber } : null,
+    { key: 'best', label: '90d best', color: seriesColors.best || colors.blue },
   ].filter(Boolean)
 
   const allSecs = data.map(d => d.sec)
@@ -128,11 +129,11 @@ export default function PowerCurveChart({ data, compareLabel, colors = {} }) {
           {/* Grid lines */}
           {yTicks.map(t => (
             <line key={t} x1={0} x2={innerW} y1={yScale(t)} y2={yScale(t)}
-              stroke="#2a2a3a" strokeDasharray="3 3" />
+              stroke={colors.border} strokeDasharray="3 3" />
           ))}
           {xTicks.map(({ sec }) => (
             <line key={sec} x1={xScale(sec)} x2={xScale(sec)} y1={0} y2={INNER_H}
-              stroke="#2a2a3a" strokeDasharray="3 3" />
+              stroke={colors.border} strokeDasharray="3 3" />
           ))}
 
           {/* Area fills (subtle) */}
@@ -169,7 +170,7 @@ export default function PowerCurveChart({ data, compareLabel, colors = {} }) {
           {series.map(({ key, color }) =>
             data.filter(d => d[key] != null).map(d => (
               <circle key={`${key}-${d.sec}`} cx={xScale(d.sec)} cy={yScale(d[key])}
-                r={3} fill={color} stroke="#1a1a2e" strokeWidth={1.5} />
+                r={3} fill={color} stroke={colors.surface} strokeWidth={1.5} />
             ))
           )}
 
@@ -183,7 +184,7 @@ export default function PowerCurveChart({ data, compareLabel, colors = {} }) {
                 if (v == null) return null
                 return (
                   <circle key={`cur-${key}`} cx={cursor.svgX} cy={yScale(v)}
-                    r={4} fill={color} stroke="#1a1a2e" strokeWidth={1.5} />
+                    r={4} fill={color} stroke={colors.surface} strokeWidth={1.5} />
                 )
               })}
 
@@ -194,11 +195,11 @@ export default function PowerCurveChart({ data, compareLabel, colors = {} }) {
                 const diffs = []
                 if (vals.power != null && vals.compare != null) {
                   const pct = ((vals.power - vals.compare) / vals.compare) * 100
-                  diffs.push({ label: 'vs compare', pct, colorA: colors.power || '#b44aff', colorB: colors.compare || '#f5a623' })
+                  diffs.push({ label: 'vs compare', pct, colorA: seriesColors.power || colors.purple, colorB: seriesColors.compare || colors.amber })
                 }
                 if (vals.power != null && vals.best != null) {
                   const pct = ((vals.power - vals.best) / vals.best) * 100
-                  diffs.push({ label: 'vs 90d best', pct, colorA: colors.power || '#b44aff', colorB: colors.best || '#4a9eff' })
+                  diffs.push({ label: 'vs 90d best', pct, colorA: seriesColors.power || colors.purple, colorB: seriesColors.best || colors.blue })
                 }
                 const tooltipH = series.length * 20 + diffs.length * 18 + 36
                 return (
@@ -219,7 +220,7 @@ export default function PowerCurveChart({ data, compareLabel, colors = {} }) {
                         <div className="mt-1.5 pt-1.5 border-t border-border">
                           {diffs.map(({ label, pct }) => {
                             const sign = pct >= 0 ? '+' : ''
-                            const col = pct >= 0 ? '#00e5a0' : '#ff4757'
+                            const col = pct >= 0 ? colors.green : colors.red
                             return (
                               <p key={label} style={{ color: col }} className="font-mono leading-tight">
                                 {label}: {sign}{pct.toFixed(1)}%
@@ -238,18 +239,18 @@ export default function PowerCurveChart({ data, compareLabel, colors = {} }) {
           {/* Y axis labels */}
           {yTicks.map(t => (
             <text key={t} x={-6} y={yScale(t) + 4} textAnchor="end"
-              fill="#6b6b8a" fontSize={10}>{t}</text>
+              fill={colors.muted} fontSize={10}>{t}</text>
           ))}
 
           {/* X axis labels */}
           {xTicks.map(({ sec, label }) => (
             <text key={sec} x={xScale(sec)} y={INNER_H + 16} textAnchor="middle"
-              fill="#6b6b8a" fontSize={10}>{label}</text>
+              fill={colors.muted} fontSize={10}>{label}</text>
           ))}
 
           {/* Axes */}
-          <line x1={0} x2={innerW} y1={INNER_H} y2={INNER_H} stroke="#3a3a5a" />
-          <line x1={0} x2={0} y1={0} y2={INNER_H} stroke="#3a3a5a" />
+          <line x1={0} x2={innerW} y1={INNER_H} y2={INNER_H} stroke={colors.border} />
+          <line x1={0} x2={0} y1={0} y2={INNER_H} stroke={colors.border} />
         </g>
       </svg>
     </div>

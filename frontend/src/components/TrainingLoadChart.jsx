@@ -1,3 +1,4 @@
+import { colors } from '../colors.js'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
@@ -24,29 +25,29 @@ export default function TrainingLoadChart({ data = [] }) {
         <AreaChart data={data} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
           <defs>
             <linearGradient id="loadGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#4a9eff" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#4a9eff" stopOpacity={0} />
+              <stop offset="5%" stopColor={colors.blue} stopOpacity={0.3} />
+              <stop offset="95%" stopColor={colors.blue} stopOpacity={0} />
             </linearGradient>
             <linearGradient id="acuteGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#f5a623" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#f5a623" stopOpacity={0} />
+              <stop offset="5%" stopColor={colors.amber} stopOpacity={0.3} />
+              <stop offset="95%" stopColor={colors.amber} stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" />
+          <CartesianGrid strokeDasharray="3 3" stroke={colors.border} />
           <XAxis
             dataKey="date"
-            tick={{ fill: '#6b6b8a', fontSize: 11 }}
+            tick={{ fill: colors.muted, fontSize: 11 }}
           />
-          <YAxis tick={{ fill: '#6b6b8a', fontSize: 11 }} />
+          <YAxis tick={{ fill: colors.muted, fontSize: 11 }} />
           <Tooltip content={<CustomTooltip />} />
           <Legend
-            formatter={(v) => <span style={{ color: '#6b6b8a', fontSize: 12 }}>{v}</span>}
+            formatter={(v) => <span style={{ color: colors.muted, fontSize: 12 }}>{v}</span>}
           />
           <Area
             type="monotone"
             dataKey="training_load"
             name="7-Day Load"
-            stroke="#4a9eff"
+            stroke={colors.blue}
             fill="url(#loadGrad)"
             strokeWidth={2}
             connectNulls
@@ -55,7 +56,7 @@ export default function TrainingLoadChart({ data = [] }) {
             type="monotone"
             dataKey="acute_load"
             name="Acute Load"
-            stroke="#f5a623"
+            stroke={colors.amber}
             fill="url(#acuteGrad)"
             strokeWidth={2}
             connectNulls
