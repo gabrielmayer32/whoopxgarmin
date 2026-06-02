@@ -10,3 +10,4 @@ pydantic
 pydantic-settings
 llama-cpp-python
 lightgbm
+scikit-learn

@@ -1,12 +1,13 @@
 import { colors } from '../colors.js'
 import { useEffect, useState } from 'react'
-import { fetchDashboard, fetchTrends, fetchWhoopStatus, fetchWhoopGarminCorrelation, fetchStrainRecoveryCorrelation, fetchRecoveryPrediction } from '../api/client'
+import { fetchDashboard, fetchTrends, fetchWhoopStatus, fetchWhoopGarminCorrelation, fetchStrainRecoveryCorrelation, fetchRecoveryPrediction, fetchAnomalies } from '../api/client'
 import MetricCard from '../components/MetricCard'
 import HRVChart from '../components/HRVChart'
 import SleepChart from '../components/SleepChart'
 import ActivityFeed from '../components/ActivityFeed'
 import StrainRing from '../components/StrainRing'
 import InsightsPanel from '../components/InsightsPanel'
+import AnomalyPanel from '../components/AnomalyPanel'
 import CorrelationChart from '../components/CorrelationChart'
 import DateRangeSelector from '../components/DateRangeSelector'
 import useDateRange from '../hooks/useDateRange'
@@ -48,6 +49,7 @@ export default function Dashboard() {
   const [correlation, setCorrelation] = useState([])
   const [strainCorr, setStrainCorr] = useState([])
   const [prediction, setPrediction] = useState(null)
+  const [anomalies, setAnomalies] = useState(null)
   const [loading, setLoading] = useState(true)
   const [whoopAuth, setWhoopAuth] = useState(null)
 
@@ -60,14 +62,16 @@ export default function Dashboard() {
       fetchWhoopGarminCorrelation(days, startDate),
       fetchStrainRecoveryCorrelation(days, startDate),
       fetchRecoveryPrediction(),
+      fetchAnomalies(days),
     ])
-      .then(([dash, t, ws, corr, sc, pred]) => {
+      .then(([dash, t, ws, corr, sc, pred, anomalyData]) => {
         setData(dash)
         setTrends(t)
         setWhoopAuth(ws.authorized)
         setCorrelation(corr)
         setStrainCorr(sc)
         setPrediction(pred)
+        setAnomalies(anomalyData)
       })
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -138,6 +142,8 @@ export default function Dashboard() {
           loading={loading}
         />
       </div>
+
+      <AnomalyPanel data={anomalies} loading={loading} />
 
       {/* Recovery ↔ Training Load overlay — the core cross-device insight */}
       <div className="bg-surface rounded-2xl p-5 border border-border">

@@ -16,6 +16,7 @@ from backend.services.whoop_service import (
     is_authorized,
 )
 from backend.insights import compute_insights
+from backend.anomaly_model import detect_anomalies
 from backend.recovery_model import predict_next_day_recovery
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
@@ -480,3 +481,8 @@ def recovery_prediction(date: str = None):
     target = date or _today().isoformat()
     return predict_next_day_recovery(target)
 
+
+@router.get("/anomalies")
+def anomalies(days: int = 30, end_date: str = None):
+    target = end_date or _today().isoformat()
+    return detect_anomalies(days=days, end_date=target)

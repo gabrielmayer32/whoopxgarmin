@@ -39,6 +39,9 @@ export const fetchStrainRecoveryCorrelation = (days = 60, startDate = null) =>
 export const fetchRecoveryPrediction = (date) =>
   api.get('/recovery-prediction', { params: date ? { date } : {} }).then((r) => r.data)
 
+export const fetchAnomalies = (days = 30, endDate = null) =>
+  api.get('/anomalies', { params: { days, ...(endDate ? { end_date: endDate } : {}) } }).then((r) => r.data)
+
 export const fetchGymSessions = (days = 60, startDate = null) =>
   api.get('/gym-sessions', { params: rangeParams(days, startDate) }).then((r) => r.data)
 
