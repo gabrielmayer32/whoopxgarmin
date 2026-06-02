@@ -8,6 +8,7 @@ from garminconnect import Garmin, GarminConnectAuthenticationError
 
 from backend.config import get_settings
 from backend.database import get_connection
+from backend.llm_insights import invalidate_insights_cache
 
 logger = logging.getLogger(__name__)
 
@@ -238,6 +239,7 @@ def _sync_garmin_activities(client: Garmin, target_date: date):
                     acute_load = excluded.acute_load
             """, (date_str, daily_load, acute))
             conn.commit()
+        invalidate_insights_cache()
     finally:
         conn.close()
 

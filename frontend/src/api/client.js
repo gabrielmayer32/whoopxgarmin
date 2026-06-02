@@ -36,6 +36,9 @@ export const fetchWhoopGarminCorrelation = (days = 60, startDate = null) =>
 export const fetchStrainRecoveryCorrelation = (days = 60, startDate = null) =>
   api.get('/strain-recovery-correlation', { params: rangeParams(days, startDate) }).then((r) => r.data)
 
+export const fetchRecoveryPrediction = (date) =>
+  api.get('/recovery-prediction', { params: date ? { date } : {} }).then((r) => r.data)
+
 export const fetchGymSessions = (days = 60, startDate = null) =>
   api.get('/gym-sessions', { params: rangeParams(days, startDate) }).then((r) => r.data)
 

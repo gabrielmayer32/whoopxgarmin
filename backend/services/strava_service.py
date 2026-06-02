@@ -8,6 +8,7 @@ from urllib.parse import urlencode
 import httpx
 
 from backend.config import get_settings
+from backend.llm_insights import invalidate_insights_cache
 from backend.database import get_connection
 
 logger = logging.getLogger(__name__)
@@ -188,6 +189,7 @@ def sync_strava_range(start: date, end: date):
             ))
         conn.commit()
         logger.info(f"Strava: saved {len(gym_activities)} gym sessions")
+        invalidate_insights_cache()
     finally:
         conn.close()
 

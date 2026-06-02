@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchDashboard, fetchTrends, fetchWhoopStatus, fetchWhoopGarminCorrelation, fetchStrainRecoveryCorrelation } from '../api/client'
+import { fetchDashboard, fetchTrends, fetchWhoopStatus, fetchWhoopGarminCorrelation, fetchStrainRecoveryCorrelation, fetchRecoveryPrediction } from '../api/client'
 import MetricCard from '../components/MetricCard'
 import HRVChart from '../components/HRVChart'
 import SleepChart from '../components/SleepChart'
@@ -46,6 +46,7 @@ export default function Dashboard() {
   const [trends, setTrends] = useState([])
   const [correlation, setCorrelation] = useState([])
   const [strainCorr, setStrainCorr] = useState([])
+  const [prediction, setPrediction] = useState(null)
   const [loading, setLoading] = useState(true)
   const [whoopAuth, setWhoopAuth] = useState(null)
 
@@ -57,13 +58,15 @@ export default function Dashboard() {
       fetchWhoopStatus(),
       fetchWhoopGarminCorrelation(days, startDate),
       fetchStrainRecoveryCorrelation(days, startDate),
+      fetchRecoveryPrediction(),
     ])
-      .then(([dash, t, ws, corr, sc]) => {
+      .then(([dash, t, ws, corr, sc, pred]) => {
         setData(dash)
         setTrends(t)
         setWhoopAuth(ws.authorized)
         setCorrelation(corr)
         setStrainCorr(sc)
+        setPrediction(pred)
       })
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -114,7 +117,7 @@ export default function Dashboard() {
       </div>
 
       {/* WHOOP vitals — top row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <MetricCard label="Recovery Score" value={data?.recovery?.whoop_recovery_score} unit="%" source="whoop"
           color={recoveryColor(data?.recovery?.whoop_recovery_score)} loading={loading} />
         <MetricCard label="HRV" value={data?.recovery?.whoop_hrv != null ? +data.recovery.whoop_hrv.toFixed(1) : null}
@@ -122,6 +125,17 @@ export default function Dashboard() {
         <MetricCard label="Resting HR" value={data?.recovery?.whoop_resting_hr} unit="bpm" source="whoop" loading={loading} />
         <MetricCard label="Sleep Performance" value={data?.sleep?.whoop_sleep_performance} unit="%" source="whoop"
           color={sleepColor(data?.sleep?.whoop_sleep_performance)} loading={loading} />
+        <MetricCard
+          label="Tomorrow Recovery"
+          value={prediction?.status === 'ok' ? prediction.predicted_recovery : null}
+          unit="%"
+          source="LightGBM"
+          color={prediction?.band}
+          sub={prediction?.status === 'ok'
+            ? `${prediction.confidence} confidence${prediction.validation_mae != null ? ` · MAE ±${prediction.validation_mae}%` : ''}`
+            : prediction?.reason}
+          loading={loading}
+        />
       </div>
 
       {/* Recovery ↔ Training Load overlay — the core cross-device insight */}

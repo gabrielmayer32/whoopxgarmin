@@ -2,7 +2,7 @@ from datetime import date, timedelta
 from typing import Dict, Any
 
 from backend.database import get_connection
-from backend.llm_insights import generate_llm_insights
+from backend.llm_insights import generate_all_coaching
 
 
 def _rows(query: str, params: tuple = ()) -> list:
@@ -83,7 +83,6 @@ def compute_insights(target_date: str) -> Dict[str, Any]:
         day_facts.append("High strain accumulated today despite low recovery — tomorrow may need to be easy")
 
     day_metrics = {"Recovery": rec, "HRV (ms)": hrv, "Resting HR": rhr, "Sleep %": sleep_perf, "Body Battery": bb, "Steps": steps}
-    day_coaching = generate_llm_insights(day_facts, day_metrics) if day_facts else ""
 
     # ── WEEK ─────────────────────────────────────────────────────────────────
     week_facts = []
@@ -127,7 +126,6 @@ def compute_insights(target_date: str) -> Dict[str, Any]:
         week_facts.append(f"Body Battery has been declining every day this week (now {bb_week[-1]})")
 
     week_metrics = {"Avg recovery": _avg(rec_week), "Avg HRV": _avg(hrv_week), "Total strain": sum(strain_week) if strain_week else None, "Total training load": sum(load_week) if load_week else None, "Avg sleep %": _avg(sleep_perf_week)}
-    week_coaching = generate_llm_insights(week_facts, week_metrics) if week_facts else ""
 
     # ── RECOVERY ─────────────────────────────────────────────────────────────
     recovery_facts = []
@@ -166,7 +164,6 @@ def compute_insights(target_date: str) -> Dict[str, Any]:
             recovery_facts.append(f"HRV is well above your 7-day average — prime window for high-intensity work")
 
     recovery_metrics = {"Recovery": rec, "HRV": hrv, "Resting HR": rhr}
-    recovery_coaching = generate_llm_insights(recovery_facts, recovery_metrics) if recovery_facts else ""
 
     # ── SLEEP ─────────────────────────────────────────────────────────────────
     sleep_facts = []
@@ -201,7 +198,6 @@ def compute_insights(target_date: str) -> Dict[str, Any]:
             sleep_facts.append("Sleep schedule has been very consistent this week")
 
     sleep_metrics = {"Sleep %": sleep_perf, "Duration (h)": dur / 3600 if dur else None, "REM (h)": rem / 3600 if rem else None, "Deep (h)": deep / 3600 if deep else None}
-    sleep_coaching = generate_llm_insights(sleep_facts, sleep_metrics) if sleep_facts else ""
 
     # ── HRV ──────────────────────────────────────────────────────────────────
     hrv_facts = []
@@ -227,7 +223,6 @@ def compute_insights(target_date: str) -> Dict[str, Any]:
                 hrv_facts.append(f"HRV average improving over the past 2 weeks (+{trend:.0f} ms) — positive adaptation")
 
     hrv_metrics = {"HRV today": hrv, "30d avg": _avg(hrv_30_vals), "30d SD": _std(hrv_30_vals)}
-    hrv_coaching = generate_llm_insights(hrv_facts, hrv_metrics) if hrv_facts else ""
 
     # ── TRAINING ─────────────────────────────────────────────────────────────
     training_facts = []
@@ -253,7 +248,6 @@ def compute_insights(target_date: str) -> Dict[str, Any]:
             training_facts.append(f"VO2 max improved from {vo2_vals[0]:.1f} to {vo2_vals[-1]:.1f} this month")
 
     training_metrics = {"Total TSS": sum(a["tss"] for a in ride_30) if ride_30 else None, "Avg NP": _avg(np_vals), "VO2 max": vo2_vals[-1] if vo2_vals else None}
-    training_coaching = generate_llm_insights(training_facts, training_metrics) if training_facts else ""
 
     # ── CROSS-PLATFORM ───────────────────────────────────────────────────────
     cross_facts = []
@@ -293,14 +287,17 @@ def compute_insights(target_date: str) -> Dict[str, Any]:
                 cross_facts.append(f"You tend to ride harder on high-HRV mornings (avg TSS {hi_tss:.0f} vs {lo_tss:.0f} on low-HRV days)")
 
     cross_metrics = {"Avg strain": _avg([w.get("strain") for w in whoop_30 if w.get("strain")]), "Avg recovery": _avg([w.get("recovery_score") for w in whoop_30 if w.get("recovery_score")])}
-    cross_coaching = generate_llm_insights(cross_facts, cross_metrics) if cross_facts else ""
 
-    return {
-        "day":           {"facts": day_facts,      "coaching": day_coaching},
-        "week":          {"facts": week_facts,      "coaching": week_coaching},
-        "recovery":      {"facts": recovery_facts,  "coaching": recovery_coaching},
-        "sleep":         {"facts": sleep_facts,      "coaching": sleep_coaching},
-        "hrv":           {"facts": hrv_facts,        "coaching": hrv_coaching},
-        "training":      {"facts": training_facts,   "coaching": training_coaching},
-        "cross_platform":{"facts": cross_facts,      "coaching": cross_coaching},
+    sections = {
+        "day":            {"facts": day_facts,      "metrics": day_metrics},
+        "week":           {"facts": week_facts,      "metrics": week_metrics},
+        "recovery":       {"facts": recovery_facts,  "metrics": recovery_metrics},
+        "sleep":          {"facts": sleep_facts,     "metrics": sleep_metrics},
+        "hrv":            {"facts": hrv_facts,       "metrics": hrv_metrics},
+        "training":       {"facts": training_facts,  "metrics": training_metrics},
+        "cross_platform": {"facts": cross_facts,     "metrics": cross_metrics},
     }
+
+    coaching = generate_all_coaching(sections)
+
+    return {name: {"facts": sections[name]["facts"], "coaching": coaching[name]} for name in sections}

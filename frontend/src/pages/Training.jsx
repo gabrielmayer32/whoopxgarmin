@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { fetchCyclingStats, fetchPowerCurveBest, fetchActivities, fetchGymSessions } from '../api/client'
 import TrainingLoadChart from '../components/TrainingLoadChart'
 import PowerCurveChart from '../components/PowerCurveChart'
@@ -67,6 +67,9 @@ export default function Training() {
   const [loading, setLoading] = useState(true)
   const [selectedRide, setSelectedRide] = useState(null)
   const [compareRide, setCompareRide] = useState(null)
+  const [sortCol, setSortCol] = useState('date')
+  const [sortDir, setSortDir] = useState('desc')
+  const [rideMonth, setRideMonth] = useState(null)
 
   useEffect(() => {
     setLoading(true)
@@ -81,7 +84,8 @@ export default function Training() {
         setBestPower(bp)
         setActivities(acts)
         setGymSessions(gym)
-        if (acts.length) setSelectedRide(acts[0])
+        setSelectedRide(null)
+        setRideMonth(null)
       })
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -97,7 +101,6 @@ export default function Training() {
     days
   )
 
-  // Power curve — durations in seconds for proper x-axis ordering
   const CURVE_POINTS = [
     { key: '5s',  label: '5s',  sec: 5 },
     { key: '20s', label: '20s', sec: 20 },
@@ -107,38 +110,7 @@ export default function Training() {
     { key: '20m', label: '20m', sec: 1200 },
     { key: '60m', label: '60m', sec: 3600 },
   ]
-  const rideForCurve = selectedRide
-  const powerCurveData = rideForCurve?.power_curve
-    ? CURVE_POINTS.map(({ key, label, sec }) => ({
-        label,
-        sec,
-        power: rideForCurve.power_curve[key] ?? null,
-        compare: compareRide?.power_curve?.[key] ?? null,
-        best: bestPower?.[key] ?? null,
-      }))
-    : []
 
-  // HR zone distribution for selected ride
-  const hrZoneData = rideForCurve?.hr_zones?.map((sec, i) => ({
-    name: HR_ZONE_NAMES[i],
-    minutes: sec ? Math.round(sec / 60) : 0,
-    fill: HR_ZONE_COLORS[i],
-  })).filter(z => z.minutes > 0) || []
-
-  // Power zone distribution
-  const pwrZoneData = rideForCurve?.power_zones?.map((sec, i) => ({
-    name: `PZ${i + 1}`,
-    minutes: sec ? Math.round(sec / 60) : 0,
-    fill: POWER_ZONE_COLORS[i],
-  })).filter(z => z.minutes > 0) || []
-
-  // Aggregated HR zone totals across all rides (last 10)
-  const last10 = activities.slice(0, 10)
-  const totalHrZones = HR_ZONE_NAMES.map((name, i) => ({
-    name,
-    minutes: Math.round(last10.reduce((s, a) => s + (a.hr_zones?.[i] || 0), 0) / 60),
-    fill: HR_ZONE_COLORS[i],
-  }))
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 flex flex-col gap-6">
@@ -224,94 +196,201 @@ export default function Training() {
       {/* Training Load chart */}
       <TrainingLoadChart data={aggregateByRange(stats.map(r => ({ date: r.date, training_load: r.training_load, acute_load: r.acute_load })), days)} />
 
-      {/* Ride selector + per-ride deep dive */}
+      {/* Activity table */}
       <div className="bg-surface rounded-2xl p-5 border border-border">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="metric-label">Ride Analysis</h3>
-          <select
-            className="bg-surface-2 border border-border text-sm text-white rounded-lg px-3 py-1.5 outline-none"
-            value={selectedRide?.id || ''}
-            onChange={(e) => { setSelectedRide(activities.find(a => a.id === e.target.value)); setCompareRide(null) }}
-          >
-            {activities.map(a => (
-              <option key={a.id} value={a.id}>
-                {a.date} — {a.name || a.type}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {selectedRide && (
-          <div className="flex flex-col gap-5">
-            {/* Ride KPIs */}
-            <div className="flex gap-3 flex-wrap">
-              <StatPill label="Duration" value={fmtDuration(selectedRide.duration_seconds)} />
-              <StatPill label="Distance" value={fmtDist(selectedRide.distance_meters)} />
-              <StatPill label="Avg Power" value={selectedRide.avg_power} unit="W" color="text-blue" />
-              <StatPill label="NP" value={selectedRide.norm_power} unit="W" color="text-purple" />
-              <StatPill label="kJ" value={selectedRide.avg_power && selectedRide.duration_seconds ? Math.round(selectedRide.avg_power * selectedRide.duration_seconds / 1000) : null} color="text-orange" />
-              <StatPill label="TSS" value={selectedRide.tss?.toFixed(0)} color="text-amber" />
-              <StatPill label="IF" value={selectedRide.intensity_factor} color="text-green" />
-              <StatPill label="Avg Cadence" value={selectedRide.avg_cadence} unit="rpm" />
-              <StatPill label="Elevation" value={selectedRide.elevation_gain} unit="m" />
-              <StatPill label="Avg Speed" value={fmtSpeed(selectedRide.avg_speed)} />
-              {selectedRide.grit != null && <StatPill label="Grit" value={selectedRide.grit?.toFixed(1)} color="text-red" />}
-              {selectedRide.flow != null && <StatPill label="Flow" value={selectedRide.flow?.toFixed(2)} color="text-green" />}
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Power curve */}
-              {powerCurveData.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="metric-label">Power Curve</p>
-                    <select
-                      className="bg-surface-2 border border-border text-xs text-white rounded-lg px-2 py-1 outline-none max-w-[180px]"
-                      value={compareRide?.id || ''}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        setCompareRide(val ? activities.find(a => a.id === val) : null)
-                      }}
-                    >
-                      <option value="">+ Compare ride…</option>
-                      {activities
-                        .filter(a => a.id !== selectedRide?.id && a.power_curve)
-                        .map(a => (
-                          <option key={a.id} value={a.id}>
-                            {a.date?.slice(5)} — {a.name || a.type}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                  <PowerCurveChart
-                    data={powerCurveData}
-                    compareLabel={compareRide ? `${compareRide.date?.slice(5)}` : null}
-                  />
-                </div>
-              )}
-
-              {/* HR zones */}
-              {hrZoneData.length > 0 && (
-                <div>
-                  <p className="metric-label mb-3">HR Zone Distribution</p>
-                  <ResponsiveContainer width="100%" height={180}>
-                    <BarChart data={hrZoneData} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" horizontal={false} />
-                      <XAxis type="number" tick={{ fill: '#6b6b8a', fontSize: 11 }} unit="m" />
-                      <YAxis type="category" dataKey="name" tick={{ fill: '#6b6b8a', fontSize: 11 }} width={28} />
-                      <Tooltip content={<Tooltip_ />} />
-                      <Bar dataKey="minutes" name="Minutes" radius={[0, 4, 4, 0]}>
-                        {hrZoneData.map((entry, i) => (
-                          <rect key={i} fill={entry.fill} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </div>
+        {loading ? (
+          <div className="flex flex-col gap-2">
+            {[1, 2, 3].map((i) => <div key={i} className="h-10 bg-surface-2 animate-pulse rounded-xl" />)}
           </div>
-        )}
+        ) : (() => {
+          const months = [...new Set(activities.map(a => a.date?.slice(0, 7)).filter(Boolean))].sort((a, b) => b.localeCompare(a))
+          const activeMonth = rideMonth ?? months[0] ?? null
+          const monthActivities = activities.filter(a => a.date?.startsWith(activeMonth))
+
+          const COLS = [
+            { key: 'date',             label: 'Date',  tooltip: null,                          left: true },
+            { key: 'name',             label: 'Name',  tooltip: null,                          left: true },
+            { key: 'duration_seconds', label: 'Dur',   tooltip: 'Duration' },
+            { key: 'distance_meters',  label: 'Dist',  tooltip: 'Distance' },
+            { key: 'avg_power',        label: 'Avg W', tooltip: 'Average Power (watts)' },
+            { key: 'norm_power',       label: 'NP',    tooltip: 'Normalized Power (watts)' },
+            { key: 'tss',              label: 'TSS',   tooltip: 'Training Stress Score' },
+            { key: 'intensity_factor', label: 'IF',    tooltip: 'Intensity Factor' },
+            { key: 'avg_cadence',      label: 'CAD',   tooltip: 'Cadence (rpm)' },
+            { key: 'elevation_gain',   label: 'Elev',  tooltip: 'Elevation Gain (meters)' },
+            { key: 'training_effect',  label: 'TE',    tooltip: 'Training Effect' },
+          ]
+
+          const getValue = (a, key) => {
+            if (key === 'name') return (a.name || a.type || '').toLowerCase()
+            return a[key] ?? -Infinity
+          }
+
+          const sorted = [...monthActivities].sort((a, b) => {
+            const av = getValue(a, sortCol)
+            const bv = getValue(b, sortCol)
+            if (av < bv) return sortDir === 'asc' ? -1 : 1
+            if (av > bv) return sortDir === 'asc' ? 1 : -1
+            return 0
+          })
+
+          const handleSort = (key) => {
+            if (sortCol === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+            else { setSortCol(key); setSortDir('desc') }
+          }
+
+          const SortIcon = ({ col }) => {
+            if (sortCol !== col) return <span className="opacity-20 ml-1">↕</span>
+            return <span className="ml-1 opacity-80">{sortDir === 'asc' ? '↑' : '↓'}</span>
+          }
+
+          const fmtMonth = (ym) => {
+            const [y, m] = ym.split('-')
+            return new Date(+y, +m - 1).toLocaleString('default', { month: 'short', year: 'numeric' })
+          }
+
+          return (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h3 className="metric-label">
+                  All Rides
+                  <span className="text-muted font-normal ml-2 text-xs">({sorted.length} ride{sorted.length !== 1 ? 's' : ''})</span>
+                </h3>
+                <div className="flex gap-1 flex-wrap">
+                  {months.map(m => (
+                    <button
+                      key={m}
+                      onClick={() => { setRideMonth(m); setSelectedRide(null); setCompareRide(null) }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${activeMonth === m ? 'bg-blue text-white' : 'bg-surface-2 text-muted hover:text-white'}`}
+                    >
+                      {fmtMonth(m)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-muted text-xs uppercase tracking-wider border-b border-border">
+                    {COLS.map(({ key, label, tooltip, left }) => (
+                      <th
+                        key={key}
+                        title={tooltip || undefined}
+                        onClick={() => handleSort(key)}
+                        className={`pb-3 font-medium cursor-pointer select-none hover:text-white transition-colors ${left ? 'text-left' : 'text-right'} ${sortCol === key ? 'text-white' : ''}`}
+                      >
+                        {label}<SortIcon col={key} />
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.map((a) => {
+                    const isOpen = selectedRide?.id === a.id
+                    const ridePowerCurve = isOpen && a.power_curve
+                      ? CURVE_POINTS.map(({ key, label, sec }) => ({
+                          label, sec,
+                          power: a.power_curve[key] ?? null,
+                          compare: compareRide?.power_curve?.[key] ?? null,
+                          best: bestPower?.[key] ?? null,
+                        }))
+                      : []
+                    const rideHrZones = isOpen && a.hr_zones
+                      ? a.hr_zones.map((sec, i) => ({ name: HR_ZONE_NAMES[i], minutes: sec ? Math.round(sec / 60) : 0, fill: HR_ZONE_COLORS[i] })).filter(z => z.minutes > 0)
+                      : []
+                    return (
+                      <React.Fragment key={a.id}>
+                        <tr
+                          className={`cursor-pointer transition-colors border-t border-border ${isOpen ? 'bg-surface-2' : 'hover:bg-surface-2'}`}
+                          onClick={() => { setSelectedRide(isOpen ? null : a); setCompareRide(null) }}
+                        >
+                          <td className="py-2.5 text-muted text-xs">{a.date?.slice(5)}</td>
+                          <td className="py-2.5 font-medium max-w-[160px] truncate pr-3">
+                            <span className="mr-1.5 text-muted text-xs">{isOpen ? '▾' : '▸'}</span>
+                            {a.name || a.type}
+                          </td>
+                          <td className="py-2.5 text-right font-mono text-xs">{fmtDuration(a.duration_seconds)}</td>
+                          <td className="py-2.5 text-right font-mono text-xs">{fmtDist(a.distance_meters)}</td>
+                          <td className="py-2.5 text-right font-mono text-xs text-blue">{a.avg_power ? `${Math.round(a.avg_power)}` : '—'}</td>
+                          <td className="py-2.5 text-right font-mono text-xs text-purple">{a.norm_power ? `${Math.round(a.norm_power)}` : '—'}</td>
+                          <td className="py-2.5 text-right font-mono text-xs text-amber">{a.tss ? `${Math.round(a.tss)}` : '—'}</td>
+                          <td className="py-2.5 text-right font-mono text-xs">{a.intensity_factor?.toFixed(2) || '—'}</td>
+                          <td className="py-2.5 text-right font-mono text-xs">{a.avg_cadence || '—'}</td>
+                          <td className="py-2.5 text-right font-mono text-xs">{a.elevation_gain ? `${Math.round(a.elevation_gain)}m` : '—'}</td>
+                          <td className="py-2.5 text-right font-mono text-xs text-green">{a.training_effect?.toFixed(1) || '—'}</td>
+                        </tr>
+                        {isOpen && (
+                          <tr className="bg-surface-2">
+                            <td colSpan={11} className="px-2 pb-5 pt-3">
+                              <div className="flex flex-col gap-4">
+                                {/* KPIs */}
+                                <div className="flex gap-2 flex-wrap">
+                                  <StatPill label="Duration" value={fmtDuration(a.duration_seconds)} />
+                                  <StatPill label="Distance" value={fmtDist(a.distance_meters)} />
+                                  <StatPill label="Avg Power" value={a.avg_power} unit="W" color="text-blue" />
+                                  <StatPill label="NP" value={a.norm_power} unit="W" color="text-purple" />
+                                  <StatPill label="kJ" value={a.avg_power && a.duration_seconds ? Math.round(a.avg_power * a.duration_seconds / 1000) : null} color="text-orange" />
+                                  <StatPill label="TSS" value={a.tss?.toFixed(0)} color="text-amber" />
+                                  <StatPill label="IF" value={a.intensity_factor} color="text-green" />
+                                  <StatPill label="Cadence" value={a.avg_cadence} unit="rpm" />
+                                  <StatPill label="Elevation" value={a.elevation_gain} unit="m" />
+                                  <StatPill label="Avg Speed" value={fmtSpeed(a.avg_speed)} />
+                                  {a.grit != null && <StatPill label="Grit" value={a.grit?.toFixed(1)} color="text-red" />}
+                                  {a.flow != null && <StatPill label="Flow" value={a.flow?.toFixed(2)} color="text-green" />}
+                                </div>
+                                {/* Charts */}
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                  {ridePowerCurve.length > 0 && (
+                                    <div>
+                                      <div className="flex items-center justify-between mb-3">
+                                        <p className="metric-label">Power Curve</p>
+                                        <select
+                                          className="bg-surface-2 border border-border text-xs text-white rounded-lg px-2 py-1 outline-none max-w-[180px]"
+                                          value={compareRide?.id || ''}
+                                          onChange={(e) => {
+                                            const val = e.target.value
+                                            setCompareRide(val ? activities.find(x => x.id === val) : null)
+                                          }}
+                                        >
+                                          <option value="">+ Compare ride…</option>
+                                          {activities.filter(x => x.id !== a.id && x.power_curve).map(x => (
+                                            <option key={x.id} value={x.id}>{x.date?.slice(5)} — {x.name || x.type}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      <PowerCurveChart data={ridePowerCurve} compareLabel={compareRide ? compareRide.date?.slice(5) : null} />
+                                    </div>
+                                  )}
+                                  {rideHrZones.length > 0 && (
+                                    <div>
+                                      <p className="metric-label mb-3">HR Zone Distribution</p>
+                                      <ResponsiveContainer width="100%" height={180}>
+                                        <BarChart data={rideHrZones} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
+                                          <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3a" horizontal={false} />
+                                          <XAxis type="number" tick={{ fill: '#6b6b8a', fontSize: 11 }} unit="m" />
+                                          <YAxis type="category" dataKey="name" tick={{ fill: '#6b6b8a', fontSize: 11 }} width={28} />
+                                          <Tooltip content={<Tooltip_ />} />
+                                          <Bar dataKey="minutes" name="Minutes" radius={[0, 4, 4, 0]}>
+                                            {rideHrZones.map((entry, i) => <rect key={i} fill={entry.fill} />)}
+                                          </Bar>
+                                        </BarChart>
+                                      </ResponsiveContainer>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            </div>
+          )
+        })()}
       </div>
 
       {/* Gym sessions */}
@@ -352,49 +431,6 @@ export default function Training() {
           )}
         </div>
       )}
-
-      {/* Activity table */}
-      <div className="bg-surface rounded-2xl p-5 border border-border">
-        <h3 className="metric-label mb-4">All Rides</h3>
-        {loading ? (
-          <div className="flex flex-col gap-2">
-            {[1, 2, 3].map((i) => <div key={i} className="h-10 bg-surface-2 animate-pulse rounded-xl" />)}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-muted text-xs uppercase tracking-wider border-b border-border">
-                  {['Date', 'Name', 'Dur', 'Dist', 'Avg W', 'NP', 'TSS', 'IF', 'Cad', 'Elev', 'TE'].map(h => (
-                    <th key={h} className={`pb-3 font-medium ${h === 'Date' || h === 'Name' ? 'text-left' : 'text-right'}`}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {activities.map((a) => (
-                  <tr
-                    key={a.id}
-                    className={`hover:bg-surface-2 transition-colors cursor-pointer ${selectedRide?.id === a.id ? 'bg-surface-2' : ''}`}
-                    onClick={() => { setSelectedRide(a); setCompareRide(null) }}
-                  >
-                    <td className="py-2.5 text-muted text-xs">{a.date?.slice(5)}</td>
-                    <td className="py-2.5 font-medium max-w-[160px] truncate pr-3">{a.name || a.type}</td>
-                    <td className="py-2.5 text-right font-mono text-xs">{fmtDuration(a.duration_seconds)}</td>
-                    <td className="py-2.5 text-right font-mono text-xs">{fmtDist(a.distance_meters)}</td>
-                    <td className="py-2.5 text-right font-mono text-xs text-blue">{a.avg_power ? `${Math.round(a.avg_power)}` : '—'}</td>
-                    <td className="py-2.5 text-right font-mono text-xs text-purple">{a.norm_power ? `${Math.round(a.norm_power)}` : '—'}</td>
-                    <td className="py-2.5 text-right font-mono text-xs text-amber">{a.tss ? `${Math.round(a.tss)}` : '—'}</td>
-                    <td className="py-2.5 text-right font-mono text-xs">{a.intensity_factor?.toFixed(2) || '—'}</td>
-                    <td className="py-2.5 text-right font-mono text-xs">{a.avg_cadence || '—'}</td>
-                    <td className="py-2.5 text-right font-mono text-xs">{a.elevation_gain ? `${Math.round(a.elevation_gain)}m` : '—'}</td>
-                    <td className="py-2.5 text-right font-mono text-xs text-green">{a.training_effect?.toFixed(1) || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
     </div>
   )
 }

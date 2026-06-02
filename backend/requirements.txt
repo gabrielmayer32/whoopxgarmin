@@ -8,3 +8,5 @@ SQLAlchemy
 apscheduler
 pydantic
 pydantic-settings
+llama-cpp-python
+lightgbm

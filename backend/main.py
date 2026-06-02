@@ -1,5 +1,7 @@
 import logging
 import threading
+from dotenv import load_dotenv
+load_dotenv()
 from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
@@ -149,11 +151,6 @@ async def manual_backfill(days: int = None, start_date: str = None):
                     _backfill_state["total"] = total
 
                 backfill_whoop_from_date(start, end, progress_callback=whoop_progress)
-
-            from backend.services.strava_service import backfill_strava, is_authorized as strava_auth
-            if strava_auth():
-                _backfill_state["service"] = "strava"
-                backfill_strava(total_days)
 
         except Exception as e:
             logger.error(f"Backfill failed: {e}", exc_info=True)
