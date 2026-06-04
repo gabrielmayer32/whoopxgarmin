@@ -85,18 +85,25 @@ def _rule_flags(rows: List[Dict[str, Any]], index: int) -> List[str]:
     flags: List[str] = []
 
     hrv = _num(row.get("whoop_hrv"))
-    load = _num(row.get("garmin_training_load")) or _num(row.get("activity_training_load"))
-    rhr = _num(row.get("whoop_resting_hr")) or _num(row.get("garmin_resting_hr"))
+    _garmin_load = _num(row.get("garmin_training_load"))
+    load = _garmin_load if _garmin_load is not None else _num(row.get("activity_training_load"))
+    _whoop_rhr = _num(row.get("whoop_resting_hr"))
+    rhr = _whoop_rhr if _whoop_rhr is not None else _num(row.get("garmin_resting_hr"))
+    _rhr_source = "whoop" if _whoop_rhr is not None else "garmin"
     recovery = _num(row.get("whoop_recovery_score"))
     strain = _num(row.get("whoop_strain"))
-    sleep_perf = _num(row.get("whoop_sleep_performance")) or _num(row.get("garmin_sleep_score"))
-    sleep_h = _num(row.get("whoop_sleep_duration_h")) or _num(row.get("garmin_sleep_duration_h"))
+    _whoop_sleep_perf = _num(row.get("whoop_sleep_performance"))
+    sleep_perf = _whoop_sleep_perf if _whoop_sleep_perf is not None else _num(row.get("garmin_sleep_score"))
+    _whoop_sleep_h = _num(row.get("whoop_sleep_duration_h"))
+    sleep_h = _whoop_sleep_h if _whoop_sleep_h is not None else _num(row.get("garmin_sleep_duration_h"))
     stress = _num(row.get("garmin_avg_stress"))
     body_battery = _num(row.get("garmin_body_battery_max"))
 
     hrv_base = _prior_values(rows, index, "whoop_hrv")
-    load_base = _prior_values(rows, index, "garmin_training_load")
-    rhr_base = _prior_values(rows, index, "whoop_resting_hr")
+    # Prefer garmin_training_load baseline; fall back to activity_training_load to match how load itself is resolved
+    load_base = _prior_values(rows, index, "garmin_training_load") or _prior_values(rows, index, "activity_training_load")
+    # Use the same rhr source as today's value so baseline and current are comparable
+    rhr_base = _prior_values(rows, index, "whoop_resting_hr" if _rhr_source == "whoop" else "garmin_resting_hr")
     strain_base = _prior_values(rows, index, "whoop_strain")
     sleep_base = _prior_values(rows, index, "whoop_sleep_duration_h")
     stress_base = _prior_values(rows, index, "garmin_avg_stress")
@@ -113,9 +120,12 @@ def _rule_flags(rows: List[Dict[str, Any]], index: int) -> List[str]:
 
     if hrv is not None and hrv_avg is not None:
         hrv_low = hrv < hrv_avg * 0.85 or (hrv_sd is not None and hrv < hrv_avg - hrv_sd)
-        load_low = load is None or load_avg is None or load <= load_avg * 0.75
+        load_low = load is not None and load_avg is not None and load <= load_avg * 0.75
+        load_unknown = load is None or load_avg is None
         if hrv_low and load_low:
             _add_flag(flags, "HRV is unusually low despite low or moderate training load")
+        elif hrv_low and not load_unknown:
+            _add_flag(flags, "HRV is unusually low versus your recent baseline (high training load may be a factor)")
         elif hrv_low:
             _add_flag(flags, "HRV is unusually low versus your recent baseline")
 
@@ -127,7 +137,8 @@ def _rule_flags(rows: List[Dict[str, Any]], index: int) -> List[str]:
             _add_flag(flags, "Resting HR is elevated versus your recent baseline")
 
     if sleep_h is not None and sleep_perf is not None:
-        enough_sleep = sleep_h >= 7 or (sleep_avg is not None and sleep_h >= sleep_avg * 0.95)
+        # "Enough" requires both absolute floor (6h) AND at least 95% of personal baseline
+        enough_sleep = sleep_h >= 6 and (sleep_avg is None or sleep_h >= sleep_avg * 0.95)
         if enough_sleep and sleep_perf < 70:
             _add_flag(flags, "Sleep quality is low despite enough sleep duration")
         if enough_sleep and recovery is not None and recovery < 40:
@@ -140,7 +151,7 @@ def _rule_flags(rows: List[Dict[str, Any]], index: int) -> List[str]:
         _add_flag(flags, "Training load spiked well above your recent baseline")
 
     strain_max = max(strain_base) if strain_base else None
-    if strain is not None and strain_avg is not None and strain_max is not None and strain > strain_avg + 5 and strain > strain_max:
+    if strain is not None and strain_avg is not None and strain > strain_avg + 3 and (strain_max is None or strain >= strain_max):
         _add_flag(flags, "WHOOP strain is higher than anything in your recent 14-day window")
 
     if stress is not None and stress_avg is not None and stress > stress_avg + 15:

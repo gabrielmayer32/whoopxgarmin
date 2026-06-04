@@ -192,6 +192,7 @@ def trends(days: int = 7, start_date: str = None):
             "whoop_deep_hours": _sec_to_h(ws.get("deep_seconds")),
             "whoop_rem_hours": _sec_to_h(ws.get("rem_seconds")),
             "whoop_light_hours": _sec_to_h(ws.get("light_seconds")),
+            "whoop_resting_hr": w.get("resting_hr"),
         })
         d += timedelta(days=1)
 
@@ -468,6 +469,129 @@ def gym_sessions(days: int = 60, start_date: str = None):
     gym_workouts.sort(key=lambda x: x.get("date", ""), reverse=True)
     return gym_workouts
 
+
+
+@router.get("/pmc")
+def pmc(days: int = 120, start_date: str = None):
+    """
+    Performance Management Chart: ATL (fatigue), CTL (fitness), TSB (form).
+    Returns 3 variants per day:
+      - classic: raw Garmin TSS
+      - augmented: TSS weighted by Whoop recovery (low recovery = higher stress)
+      - hrv: TSS weighted by HRV deviation from rolling baseline
+    """
+    from backend.database import get_connection
+    import math
+
+    # Fetch enough history before the window to warm up the EWAs (extra 42 days)
+    end = _today()
+    if start_date:
+        window_start = _date.fromisoformat(start_date)
+        end = window_start + timedelta(days=days - 1)
+    else:
+        window_start = end - timedelta(days=days - 1)
+
+    warmup_start = window_start - timedelta(days=42)
+
+    conn = get_connection()
+    try:
+        # Daily TSS: sum of all activities per day
+        act_rows = conn.execute("""
+            SELECT date, SUM(COALESCE(tss, 0)) as daily_tss
+            FROM garmin_activities
+            WHERE date BETWEEN ? AND ?
+            GROUP BY date
+        """, (warmup_start.isoformat(), end.isoformat())).fetchall()
+        tss_map = {r["date"]: r["daily_tss"] for r in act_rows}
+
+        # Whoop recovery per day
+        whoop_rows = conn.execute(
+            "SELECT date, recovery_score, hrv FROM whoop_cycles WHERE date BETWEEN ? AND ?",
+            (warmup_start.isoformat(), end.isoformat()),
+        ).fetchall()
+        recovery_map = {r["date"]: r["recovery_score"] for r in whoop_rows}
+        hrv_map = {r["date"]: r["hrv"] for r in whoop_rows}
+    finally:
+        conn.close()
+
+    # Build HRV 30-day rolling mean for baseline deviation
+    all_dates = sorted(set(list(tss_map.keys()) + list(hrv_map.keys())))
+    hrv_window = []
+    hrv_baseline = {}
+    for d in all_dates:
+        h = hrv_map.get(d)
+        if h is not None:
+            hrv_window.append(h)
+            if len(hrv_window) > 30:
+                hrv_window.pop(0)
+        if len(hrv_window) >= 7:
+            hrv_baseline[d] = sum(hrv_window) / len(hrv_window)
+
+    # EWA constants
+    k_atl = 2 / (7 + 1)   # 7-day
+    k_ctl = 2 / (42 + 1)  # 42-day
+
+    atl_c = ctl_c = 0.0
+    atl_a = ctl_a = 0.0
+    atl_h = ctl_h = 0.0
+
+    result = []
+    d = warmup_start
+    while d <= end:
+        ds = d.isoformat()
+        tss = tss_map.get(ds, 0) or 0
+
+        # Augmented TSS: penalise load when recovery is low
+        rec = recovery_map.get(ds)
+        if rec is not None:
+            # modifier: 1.0 at rec=100, 1.5 at rec=0
+            aug_modifier = 1.0 + 0.5 * (1.0 - rec / 100.0)
+        else:
+            aug_modifier = 1.0
+        aug_tss = tss * aug_modifier
+
+        # HRV-adjusted TSS: penalise when HRV is below baseline
+        hrv_val = hrv_map.get(ds)
+        baseline = hrv_baseline.get(ds)
+        if hrv_val is not None and baseline is not None and baseline > 0:
+            ratio = hrv_val / baseline  # < 1 means suppressed HRV
+            hrv_modifier = 1.0 + 0.4 * (1.0 - ratio)  # up to +40% stress at 0 HRV
+            hrv_modifier = max(0.6, min(1.6, hrv_modifier))
+        else:
+            hrv_modifier = 1.0
+        hrv_tss = tss * hrv_modifier
+
+        # Update EWAs
+        atl_c = atl_c + k_atl * (tss - atl_c)
+        ctl_c = ctl_c + k_ctl * (tss - ctl_c)
+        atl_a = atl_a + k_atl * (aug_tss - atl_a)
+        ctl_a = ctl_a + k_ctl * (aug_tss - ctl_a)
+        atl_h = atl_h + k_atl * (hrv_tss - atl_h)
+        ctl_h = ctl_h + k_ctl * (hrv_tss - ctl_h)
+
+        if d >= window_start:
+            result.append({
+                "date": ds,
+                "tss": round(tss, 1),
+                # Classic
+                "ctl": round(ctl_c, 1),
+                "atl": round(atl_c, 1),
+                "tsb": round(ctl_c - atl_c, 1),
+                # Augmented (recovery-weighted)
+                "aug_ctl": round(ctl_a, 1),
+                "aug_atl": round(atl_a, 1),
+                "aug_tsb": round(ctl_a - atl_a, 1),
+                # HRV-adjusted
+                "hrv_ctl": round(ctl_h, 1),
+                "hrv_atl": round(atl_h, 1),
+                "hrv_tsb": round(ctl_h - atl_h, 1),
+                # Context
+                "recovery_score": recovery_map.get(ds),
+                "hrv": hrv_map.get(ds),
+            })
+        d += timedelta(days=1)
+
+    return result
 
 
 @router.get("/insights")

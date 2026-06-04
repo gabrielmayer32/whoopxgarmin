@@ -51,6 +51,9 @@ export const fetchInsights = (date) =>
 export const triggerSync = () =>
   axios.post('/api/sync').then((r) => r.data)
 
+export const fetchSyncStatus = () =>
+  axios.get('/api/sync/status').then((r) => r.data)
+
 export const triggerBackfill = (days = 90) =>
   axios.post('/api/backfill', null, { params: { days } }).then((r) => r.data)
 
@@ -59,6 +62,9 @@ export const triggerBackfillFromDate = (startDate) =>
 
 export const fetchBackfillStatus = () =>
   axios.get('/api/backfill/status').then((r) => r.data)
+
+export const fetchPMC = (days = 120, startDate = null) =>
+  api.get('/pmc', { params: rangeParams(days, startDate) }).then((r) => r.data)
 
 export const fetchWhoopStatus = () =>
   axios.get('/whoop/status').then((r) => r.data)

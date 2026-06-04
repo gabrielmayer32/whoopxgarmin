@@ -30,6 +30,13 @@ _backfill_state: dict = {
     "error": None,
 }
 
+# Shared state for manual sync progress tracking
+_sync_state: dict = {
+    "running": False,
+    "error": None,
+    "last_completed": None,
+}
+
 scheduler = BackgroundScheduler()
 
 
@@ -78,12 +85,38 @@ app.include_router(strava.router)
 app.include_router(dashboard.router)
 
 
+def _run_sync_tracked():
+    global _sync_state
+    from backend.sync import run_full_sync
+    try:
+        run_full_sync()
+        _sync_state["last_completed"] = date.today().isoformat()
+        _sync_state["error"] = None
+    except Exception as e:
+        _sync_state["error"] = str(e)
+    finally:
+        _sync_state["running"] = False
+
+
 @app.post("/api/sync")
 async def manual_sync():
-    from backend.sync import run_full_sync
-    t = threading.Thread(target=run_full_sync, daemon=True)
+    global _sync_state
+    if _sync_state["running"]:
+        return {"status": "already running"}
+    _sync_state["running"] = True
+    _sync_state["error"] = None
+    t = threading.Thread(target=_run_sync_tracked, daemon=True)
     t.start()
     return {"status": "sync started"}
+
+
+@app.get("/api/sync/status")
+async def sync_status():
+    return {
+        "running": _sync_state["running"],
+        "error": _sync_state["error"],
+        "last_completed": _sync_state["last_completed"],
+    }
 
 
 @app.post("/api/backfill")

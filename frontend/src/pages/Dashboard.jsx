@@ -1,6 +1,6 @@
 import { colors } from '../colors.js'
-import { useEffect, useState } from 'react'
-import { fetchDashboard, fetchTrends, fetchWhoopStatus, fetchWhoopGarminCorrelation, fetchStrainRecoveryCorrelation, fetchRecoveryPrediction, fetchAnomalies } from '../api/client'
+import { useEffect, useRef, useState } from 'react'
+import { fetchDashboard, fetchTrends, fetchWhoopStatus, fetchWhoopGarminCorrelation, fetchStrainRecoveryCorrelation, fetchRecoveryPrediction, fetchAnomalies, fetchPMC } from '../api/client'
 import MetricCard from '../components/MetricCard'
 import HRVChart from '../components/HRVChart'
 import SleepChart from '../components/SleepChart'
@@ -12,6 +12,7 @@ import CorrelationChart from '../components/CorrelationChart'
 import DateRangeSelector from '../components/DateRangeSelector'
 import useDateRange from '../hooks/useDateRange'
 import aggregateByRange from '../utils/aggregateByRange'
+import PMCChart from '../components/PMCChart'
 import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ComposedChart, Line } from 'recharts'
 
 function recoveryColor(score) {
@@ -50,10 +51,12 @@ export default function Dashboard() {
   const [strainCorr, setStrainCorr] = useState([])
   const [prediction, setPrediction] = useState(null)
   const [anomalies, setAnomalies] = useState(null)
+  const [pmcData, setPmcData] = useState([])
   const [loading, setLoading] = useState(true)
   const [whoopAuth, setWhoopAuth] = useState(null)
 
-  useEffect(() => {
+  const loadAllRef = useRef(null)
+  loadAllRef.current = function loadAll() {
     setLoading(true)
     Promise.all([
       fetchDashboard(),
@@ -63,8 +66,9 @@ export default function Dashboard() {
       fetchStrainRecoveryCorrelation(days, startDate),
       fetchRecoveryPrediction(),
       fetchAnomalies(days),
+      fetchPMC(Math.max(days, 120), startDate),
     ])
-      .then(([dash, t, ws, corr, sc, pred, anomalyData]) => {
+      .then(([dash, t, ws, corr, sc, pred, anomalyData, pmc]) => {
         setData(dash)
         setTrends(t)
         setWhoopAuth(ws.authorized)
@@ -72,16 +76,32 @@ export default function Dashboard() {
         setStrainCorr(sc)
         setPrediction(pred)
         setAnomalies(anomalyData)
+        setPmcData(pmc)
       })
       .catch(console.error)
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadAllRef.current()
   }, [days, startDate])
+
+  useEffect(() => {
+    const handler = () => loadAllRef.current()
+    window.addEventListener('sync-complete', handler)
+    return () => window.removeEventListener('sync-complete', handler)
+  }, [])
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
 
   const recoveryVsTss = strainCorr
 
   const aggregatedTrends = aggregateByRange(trends, days)
+
+  // Last 7 data points for sparklines (use raw trends, not date-windowed)
+  const spark7 = trends.slice(-7)
+  const sparkFor = (key) => spark7.map(d => d[key]).filter(v => v != null)
+  const yesterdayRow = trends.slice(-2)[0] // second-to-last entry
 
   const overlayData = aggregatedTrends.map((t, i) => {
     const nextDay = aggregatedTrends[i + 1]
@@ -123,19 +143,22 @@ export default function Dashboard() {
 
       {/* WHOOP vitals — top row */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <MetricCard label="Recovery Score" value={data?.recovery?.whoop_recovery_score} unit="%" source="whoop"
-          color={recoveryColor(data?.recovery?.whoop_recovery_score)} loading={loading} />
+        <MetricCard label="Recovery Score" value={data?.recovery?.whoop_recovery_score} unit="%"
+          source="whoop" color={recoveryColor(data?.recovery?.whoop_recovery_score)} loading={loading}
+          sparkline={sparkFor('whoop_recovery_score')} yesterday={yesterdayRow?.whoop_recovery_score} />
         <MetricCard label="HRV" value={data?.recovery?.whoop_hrv != null ? +data.recovery.whoop_hrv.toFixed(1) : null}
-          unit="ms" source="whoop" loading={loading} />
-        <MetricCard label="Resting HR" value={data?.recovery?.whoop_resting_hr} unit="bpm" source="whoop" loading={loading} />
-        <MetricCard label="Sleep Performance" value={data?.sleep?.whoop_sleep_performance} unit="%" source="whoop"
-          color={sleepColor(data?.sleep?.whoop_sleep_performance)} loading={loading} />
+          unit="ms" source="whoop" loading={loading}
+          sparkline={sparkFor('whoop_hrv')} yesterday={yesterdayRow?.whoop_hrv != null ? +yesterdayRow.whoop_hrv.toFixed(1) : null} />
+        <MetricCard label="Resting HR" value={data?.recovery?.whoop_resting_hr} unit="bpm"
+          source="whoop" loading={loading} invertDelta
+          sparkline={sparkFor('whoop_resting_hr')} yesterday={yesterdayRow?.whoop_resting_hr} />
+        <MetricCard label="Sleep Performance" value={data?.sleep?.whoop_sleep_performance} unit="%"
+          source="whoop" color={sleepColor(data?.sleep?.whoop_sleep_performance)} loading={loading}
+          sparkline={sparkFor('whoop_sleep_performance')} yesterday={yesterdayRow?.whoop_sleep_performance} />
         <MetricCard
           label="Tomorrow Recovery"
           value={prediction?.status === 'ok' ? prediction.predicted_recovery : null}
-          unit="%"
-          source="LightGBM"
-          color={prediction?.band}
+          unit="%" source="LightGBM" color={prediction?.band}
           sub={prediction?.status === 'ok'
             ? `${prediction.confidence} confidence${prediction.validation_mae != null ? ` · MAE ±${prediction.validation_mae}%` : ''}`
             : prediction?.reason}
@@ -164,6 +187,9 @@ export default function Dashboard() {
           </ComposedChart>
         </ResponsiveContainer>
       </div>
+
+      {/* PMC — Fitness / Fatigue / Form */}
+      <PMCChart data={pmcData} />
 
       {/* HRV + Sleep side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -195,19 +221,12 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Activities + Strain */}
+      {/* Activities + Strain + Sleep detail */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2">
           <ActivityFeed activities={data?.training?.garmin_activities || []} whoopWorkouts={data?.training?.whoop_workouts || []} />
         </div>
         <StrainRing strain={data?.training?.whoop_strain} />
-      </div>
-
-      {/* Sleep detail */}
-      <div className="grid grid-cols-3 gap-4">
-        <MetricCard label="Sleep Duration" value={data?.sleep?.whoop_duration_hours} unit="h" source="whoop" loading={loading} />
-        <MetricCard label="REM" value={data?.sleep?.whoop_rem_hours} unit="h" source="whoop" loading={loading} />
-        <MetricCard label="Deep" value={data?.sleep?.whoop_deep_hours} unit="h" source="whoop" loading={loading} />
       </div>
 
       <InsightsPanel date={data?.date} />
