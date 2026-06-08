@@ -197,6 +197,23 @@ export default function Recovery() {
         </ResponsiveContainer>
       </div>
 
+      {/* RHR trend */}
+      <div className="bg-surface rounded-2xl p-5 border border-border">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="metric-label">Resting Heart Rate Trend</h3>
+          <span className="text-xs font-medium text-purple">WHOOP</span>
+        </div>
+        <ResponsiveContainer width="100%" height={200}>
+          <LineChart data={aggTrends} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={colors.border} />
+            <XAxis dataKey="date" tick={{ fill: colors.muted, fontSize: 10 }} />
+            <YAxis tick={{ fill: colors.muted, fontSize: 11 }} domain={['auto', 'auto']} unit=" bpm" />
+            <Tooltip content={<ChartTooltip />} />
+            <Line type="monotone" dataKey="whoop_resting_hr" name="RHR (bpm)" stroke={colors.red} strokeWidth={2} dot={false} connectNulls />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
       {/* Sleep performance */}
       <div className="bg-surface rounded-2xl p-5 border border-border">
         <div className="flex items-center justify-between mb-4">

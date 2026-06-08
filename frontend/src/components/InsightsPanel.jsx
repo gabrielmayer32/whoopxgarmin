@@ -2,13 +2,12 @@ import { useEffect, useState } from 'react'
 import { fetchInsights } from '../api/client'
 
 const SECTIONS = [
-  { key: 'day',            label: "Today",          icon: "◈" },
-  { key: 'week',           label: "This Week",       icon: "◷" },
-  { key: 'recovery',       label: "Recovery",        icon: "♡" },
-  { key: 'sleep',          label: "Sleep",           icon: "◑" },
-  { key: 'hrv',            label: "HRV",             icon: "∿" },
-  { key: 'training',       label: "Training",        icon: "△" },
-  { key: 'cross_platform', label: "Cross-Platform",  icon: "⇄" },
+  { key: 'day',               label: "Readiness",          icon: "◈" },
+  { key: 'week',              label: "Weekly Load",         icon: "◷" },
+  { key: 'sleep',             label: "Sleep",               icon: "◑" },
+  { key: 'hrv',               label: "HRV Trends",          icon: "∿" },
+  { key: 'training',          label: "Performance",         icon: "△" },
+  { key: 'recovery_patterns', label: "Recovery Patterns",   icon: "⇄" },
 ]
 
 function InsightSection({ label, icon, facts, coaching, loading }) {

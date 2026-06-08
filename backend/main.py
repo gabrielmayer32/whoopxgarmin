@@ -45,6 +45,9 @@ async def lifespan(app: FastAPI):
     init_db()
     logger.info("Database initialized")
 
+    from backend.services.garmin_service import patch_training_loads_from_activities
+    patch_training_loads_from_activities()
+
     scheduler.add_job(
         _scheduled_sync,
         "interval",
@@ -96,6 +99,28 @@ def _run_sync_tracked():
         _sync_state["error"] = str(e)
     finally:
         _sync_state["running"] = False
+
+
+@app.post("/api/patch-training-loads")
+async def patch_training_loads():
+    from backend.services.garmin_service import patch_training_loads_from_activities
+    patch_training_loads_from_activities()
+    return {"status": "ok"}
+
+
+@app.post("/api/sync/day")
+async def sync_day(date: str):
+    """Re-sync a specific date (YYYY-MM-DD) from Garmin and Whoop."""
+    from datetime import date as date_type
+    from backend.services.garmin_service import sync_garmin_day
+    try:
+        target = date_type.fromisoformat(date)
+    except ValueError:
+        raise HTTPException(400, "date must be YYYY-MM-DD")
+    sync_garmin_day(target)
+    from backend.services.garmin_service import patch_training_loads_from_activities
+    patch_training_loads_from_activities()
+    return {"status": "ok", "date": date}
 
 
 @app.post("/api/sync")

@@ -146,8 +146,18 @@ def _sync_garmin_activities(client: Garmin, target_date: date):
 
     from datetime import timezone, datetime
     synced_at = datetime.now(timezone.utc).isoformat()
+    garmin_ids = {str(a.get("activityId", "")) for a in activities if a.get("activityId")}
     conn = get_connection()
     try:
+        # Remove activities that no longer exist on Garmin
+        existing = conn.execute(
+            "SELECT activity_id FROM garmin_activities WHERE date = ?", (date_str,)
+        ).fetchall()
+        for row in existing:
+            if row["activity_id"] not in garmin_ids:
+                logger.info(f"Deleting stale activity {row['activity_id']} for {date_str}")
+                conn.execute("DELETE FROM garmin_activities WHERE activity_id = ?", (row["activity_id"],))
+
         for act in activities:
             act_id = str(act.get("activityId", ""))
             if not act_id:
@@ -240,6 +250,45 @@ def _sync_garmin_activities(client: Garmin, target_date: date):
             """, (date_str, daily_load, acute))
             conn.commit()
         invalidate_insights_cache()
+    finally:
+        conn.close()
+
+
+def patch_training_loads_from_activities():
+    """Fix garmin_daily rows where training_load is null but activities have load data."""
+    conn = get_connection()
+    try:
+        dates = conn.execute(
+            "SELECT DISTINCT date FROM garmin_activities WHERE date NOT IN "
+            "(SELECT date FROM garmin_daily WHERE training_load IS NOT NULL)"
+        ).fetchall()
+        patched = 0
+        for (date_str,) in dates:
+            load_rows = conn.execute(
+                "SELECT raw_json FROM garmin_activities WHERE date = ?", (date_str,)
+            ).fetchall()
+            daily_load = sum(
+                json.loads(r["raw_json"]).get("activityTrainingLoad", 0) or 0
+                for r in load_rows
+            )
+            if daily_load > 0:
+                all_loads = conn.execute(
+                    "SELECT date, training_load FROM garmin_daily WHERE date <= ? ORDER BY date DESC LIMIT 7",
+                    (date_str,),
+                ).fetchall()
+                acute = sum(r["training_load"] or 0 for r in all_loads) + daily_load
+                conn.execute("""
+                    INSERT INTO garmin_daily (date, training_load, acute_load, synced_at)
+                    VALUES (?, ?, ?, datetime('now'))
+                    ON CONFLICT(date) DO UPDATE SET
+                        training_load = excluded.training_load,
+                        acute_load = excluded.acute_load
+                """, (date_str, daily_load, acute))
+                patched += 1
+        if patched:
+            conn.commit()
+            invalidate_insights_cache()
+            logger.info(f"Patched training_load for {patched} dates from activities")
     finally:
         conn.close()
 

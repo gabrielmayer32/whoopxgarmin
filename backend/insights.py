@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 
 from backend.database import get_connection
 from backend.llm_insights import generate_all_coaching
@@ -26,10 +26,29 @@ def _std(values):
     return (sum((x - avg) ** 2 for x in v) / len(v)) ** 0.5
 
 
+def _slope(values: list) -> Optional[float]:
+    pts = [v for v in values if v is not None]
+    n = len(pts)
+    if n < 3:
+        return None
+    x_mean = (n - 1) / 2
+    y_mean = sum(pts) / n
+    num = sum((i - x_mean) * (pts[i] - y_mean) for i in range(n))
+    den = sum((i - x_mean) ** 2 for i in range(n))
+    return num / den if den > 1e-9 else None
+
+
+def _pct_diff(a, b):
+    if b and b != 0:
+        return round((a - b) / abs(b) * 100, 1)
+    return None
+
+
 def compute_insights(target_date: str) -> Dict[str, Any]:
     end = target_date
     start_30 = (date.fromisoformat(target_date) - timedelta(days=29)).isoformat()
     start_7 = (date.fromisoformat(target_date) - timedelta(days=6)).isoformat()
+    prev_7_start = (date.fromisoformat(target_date) - timedelta(days=13)).isoformat()
 
     whoop_30 = _rows("SELECT * FROM whoop_cycles WHERE date BETWEEN ? AND ? ORDER BY date", (start_30, end))
     garmin_30 = _rows("SELECT * FROM garmin_daily WHERE date BETWEEN ? AND ? ORDER BY date", (start_30, end))
@@ -37,8 +56,10 @@ def compute_insights(target_date: str) -> Dict[str, Any]:
     activities_30 = _rows("SELECT * FROM garmin_activities WHERE date BETWEEN ? AND ? ORDER BY date", (start_30, end))
 
     whoop_7 = [w for w in whoop_30 if w["date"] >= start_7]
+    whoop_prev_7 = [w for w in whoop_30 if prev_7_start <= w["date"] < start_7]
     garmin_7 = [g for g in garmin_30 if g["date"] >= start_7]
     sleep_7 = [s for s in sleep_30 if s["date"] >= start_7]
+    activities_7 = [a for a in activities_30 if a["date"] >= start_7]
 
     garmin_map = {r["date"]: r for r in garmin_30}
     whoop_map = {r["date"]: r for r in whoop_30}
@@ -48,254 +69,282 @@ def compute_insights(target_date: str) -> Dict[str, Any]:
     today_g = garmin_map.get(target_date, {})
     today_s = sleep_map.get(target_date, {})
 
-    # ── DAY ──────────────────────────────────────────────────────────────────
-    day_facts = []
-
     rec = today_w.get("recovery_score")
     hrv = today_w.get("hrv")
     strain = today_w.get("strain")
-    steps = today_g.get("steps")
-    bb = today_g.get("body_battery_max")
     rhr = today_w.get("resting_hr")
     sleep_perf = today_s.get("performance_percent")
+    bb = today_g.get("body_battery_max")
 
-    if rec is not None:
-        label = "green" if rec >= 67 else ("amber" if rec >= 34 else "red")
-        day_facts.append(f"Recovery score: {rec}% ({label})")
-    if hrv is not None:
-        hrv_30 = [w["hrv"] for w in whoop_30 if w.get("hrv")]
-        avg_hrv_30 = _avg(hrv_30)
-        if avg_hrv_30:
-            delta = hrv - avg_hrv_30
-            direction = "above" if delta >= 0 else "below"
-            day_facts.append(f"HRV {hrv:.0f} ms — {abs(delta):.0f} ms {direction} your 30-day average")
-    if rhr is not None:
-        day_facts.append(f"Resting HR: {rhr:.0f} bpm")
-    if sleep_perf is not None:
-        day_facts.append(f"Sleep performance: {sleep_perf}%")
+    hrv_30 = [w["hrv"] for w in whoop_30 if w.get("hrv")]
+    hrv_7 = [w["hrv"] for w in whoop_7 if w.get("hrv")]
+    rec_7 = [w["recovery_score"] for w in whoop_7 if w.get("recovery_score") is not None]
+    rec_prev_7 = [w["recovery_score"] for w in whoop_prev_7 if w.get("recovery_score") is not None]
+    rhr_30 = [w["resting_hr"] for w in whoop_30 if w.get("resting_hr")]
+
+    avg_hrv_30 = _avg(hrv_30)
+    std_hrv_30 = _std(hrv_30)
+    avg_rhr_30 = _avg(rhr_30)
+
+    # ── READINESS — actionable "what to do today" ────────────────────────────
+    day_facts = []
+
+    if rec is not None and hrv is not None and avg_hrv_30:
+        hrv_z = (hrv - avg_hrv_30) / std_hrv_30 if std_hrv_30 and std_hrv_30 > 0 else 0
+        if rec >= 67 and hrv_z >= 0.5:
+            day_facts.append("Recovery and HRV are both elevated — ideal day for VO2max intervals or race-pace efforts")
+        elif rec >= 67:
+            day_facts.append("Recovery is green but HRV is baseline — tempo or sweet-spot work is appropriate, save threshold efforts for a higher HRV day")
+        elif rec >= 34 and hrv_z >= 0:
+            day_facts.append("Moderate recovery with decent HRV — endurance or zone 2 work is fine, avoid deep anaerobic efforts")
+        elif rec >= 34:
+            day_facts.append("Recovery is amber with suppressed HRV — keep it to easy spinning or active recovery")
+        else:
+            day_facts.append("Recovery is red — rest day or very easy spin only; pushing through will compound fatigue")
+
+    if rhr is not None and avg_rhr_30:
+        rhr_delta = rhr - avg_rhr_30
+        if rhr_delta > 5:
+            day_facts.append(f"Resting HR is {rhr_delta:.0f} bpm above your 30-day average — possible illness, dehydration, or overreaching")
+        elif rhr_delta < -4:
+            day_facts.append(f"Resting HR is {abs(rhr_delta):.0f} bpm below your baseline — strong parasympathetic state")
+
     if bb is not None:
-        day_facts.append(f"Body Battery peak: {bb}")
-    if steps is not None:
-        day_facts.append(f"Steps: {steps:,}")
-    if rec is not None and steps is not None and rec < 40 and steps > 10000:
-        day_facts.append("High step count on a red recovery day — activity is outpacing readiness")
+        bb_7 = [g["body_battery_max"] for g in garmin_7 if g.get("body_battery_max") is not None]
+        avg_bb_7 = _avg(bb_7)
+        if avg_bb_7 and bb < avg_bb_7 - 15:
+            day_facts.append(f"Body Battery ({bb}) is well below your weekly average ({avg_bb_7:.0f}) — energy reserves are depleted")
+
     if strain is not None and rec is not None and strain > 16 and rec < 50:
-        day_facts.append("High strain accumulated today despite low recovery — tomorrow may need to be easy")
+        day_facts.append("You accumulated high strain on compromised recovery — expect a deeper recovery deficit tomorrow")
 
-    day_metrics = {"Recovery": rec, "HRV (ms)": hrv, "Resting HR": rhr, "Sleep %": sleep_perf, "Body Battery": bb, "Steps": steps}
+    day_metrics = {"Recovery": rec, "HRV (ms)": hrv, "Resting HR": rhr, "Body Battery": bb}
 
-    # ── WEEK ─────────────────────────────────────────────────────────────────
+    # ── WEEKLY LOAD — training load management ───────────────────────────────
     week_facts = []
 
-    hrv_week = [w["hrv"] for w in whoop_7 if w.get("hrv") is not None]
-    rec_week = [w["recovery_score"] for w in whoop_7 if w.get("recovery_score") is not None]
-    strain_week = [w["strain"] for w in whoop_7 if w.get("strain") is not None]
-    load_week = [g["training_load"] for g in garmin_7 if g.get("training_load") is not None]
-    sleep_perf_week = [s["performance_percent"] for s in sleep_7 if s.get("performance_percent") is not None]
+    tss_7 = [a["tss"] for a in activities_7 if a.get("tss")]
+    tss_prev_7 = [a["tss"] for a in activities_30 if a["date"] >= prev_7_start and a["date"] < start_7 and a.get("tss")]
+    load_7 = [g["training_load"] for g in garmin_7 if g.get("training_load") is not None]
 
-    if len(hrv_week) >= 3:
-        trend = hrv_week[-1] - hrv_week[0]
-        if trend <= -5:
-            week_facts.append(f"HRV trending down {abs(trend):.0f} ms over the week — accumulated fatigue likely")
-        elif trend >= 5:
-            week_facts.append(f"HRV trending up {trend:.0f} ms — adapting well this week")
+    if tss_7:
+        total_tss_7 = sum(tss_7)
+        total_tss_prev = sum(tss_prev_7) if tss_prev_7 else None
+        if total_tss_prev and total_tss_prev > 0:
+            ramp = _pct_diff(total_tss_7, total_tss_prev)
+            if ramp > 15:
+                week_facts.append(f"Weekly TSS jumped {ramp}% vs last week ({total_tss_7:.0f} vs {total_tss_prev:.0f}) — stay under +10-15% ramp rate to avoid overtraining")
+            elif ramp < -20:
+                week_facts.append(f"Weekly TSS dropped {abs(ramp)}% vs last week — intentional deload or missed sessions?")
+            else:
+                week_facts.append(f"Weekly TSS is {total_tss_7:.0f} ({ramp:+.0f}% vs last week) — sustainable ramp rate")
         else:
-            week_facts.append(f"HRV stable this week ({hrv_week[0]:.0f}→{hrv_week[-1]:.0f} ms)")
+            week_facts.append(f"Weekly TSS: {total_tss_7:.0f} across {len(tss_7)} sessions")
 
-    if rec_week:
-        avg_rec = _avg(rec_week)
-        low_days = sum(1 for r in rec_week if r < 34)
-        week_facts.append(f"Average recovery this week: {avg_rec:.0f}%")
-        if low_days >= 3:
-            week_facts.append(f"{low_days} red recovery days this week — training stress is high")
+    if rec_7 and rec_prev_7:
+        avg_rec_7 = _avg(rec_7)
+        avg_rec_prev = _avg(rec_prev_7)
+        rec_shift = avg_rec_7 - avg_rec_prev
+        if rec_shift < -10:
+            week_facts.append(f"Average recovery dropped {abs(rec_shift):.0f}% vs last week — cumulative load is catching up")
+        elif rec_shift > 10:
+            week_facts.append(f"Average recovery improved {rec_shift:.0f}% vs last week — positive adaptation or deload effect")
 
-    if strain_week:
-        total_strain = sum(strain_week)
-        week_facts.append(f"Total WHOOP strain this week: {total_strain:.1f}")
+    low_rec_days = sum(1 for r in rec_7 if r < 34)
+    if low_rec_days >= 3:
+        week_facts.append(f"{low_rec_days} red recovery days this week — functional overreaching risk; schedule 2 easy days")
 
-    if load_week:
-        total_load = sum(load_week)
-        week_facts.append(f"Total Garmin training load this week: {total_load:.0f}")
+    if load_7:
+        acute = sum(load_7)
+        chronic_loads = [g["training_load"] for g in garmin_30 if g.get("training_load") is not None]
+        if len(chronic_loads) >= 14:
+            ctl = sum(chronic_loads) / 4
+            acwr = acute / ctl if ctl > 0 else None
+            if acwr is not None:
+                if acwr > 1.5:
+                    week_facts.append(f"Acute:chronic workload ratio is {acwr:.2f} — high injury/illness risk zone (>1.5)")
+                elif acwr > 1.3:
+                    week_facts.append(f"Acute:chronic workload ratio is {acwr:.2f} — approaching the danger zone")
+                elif acwr < 0.8:
+                    week_facts.append(f"Acute:chronic workload ratio is {acwr:.2f} — undertrained; fitness may be decaying")
 
-    if sleep_perf_week:
-        avg_sleep = _avg(sleep_perf_week)
-        week_facts.append(f"Average sleep performance this week: {avg_sleep:.0f}%")
+    week_metrics = {"Weekly TSS": sum(tss_7) if tss_7 else None, "Sessions": len(activities_7), "Avg recovery": _avg(rec_7), "Red days": low_rec_days}
 
-    bb_week = [g["body_battery_max"] for g in garmin_7 if g.get("body_battery_max") is not None]
-    if len(bb_week) >= 3 and all(bb_week[i] > bb_week[i + 1] for i in range(len(bb_week) - 1)):
-        week_facts.append(f"Body Battery has been declining every day this week (now {bb_week[-1]})")
+    # ── SLEEP — sleep quality and architecture ───────────────────────────────
+    sleep_facts = []
 
-    week_metrics = {"Avg recovery": _avg(rec_week), "Avg HRV": _avg(hrv_week), "Total strain": sum(strain_week) if strain_week else None, "Total training load": sum(load_week) if load_week else None, "Avg sleep %": _avg(sleep_perf_week)}
+    dur = today_s.get("duration_seconds")
+    rem = today_s.get("rem_seconds")
+    deep = today_s.get("deep_seconds")
 
-    # ── RECOVERY ─────────────────────────────────────────────────────────────
-    recovery_facts = []
+    if dur and deep and rem:
+        h = dur / 3600
+        deep_pct = (deep / dur) * 100
+        rem_pct = (rem / dur) * 100
+
+        if h < 7:
+            sleep_facts.append(f"Only {h:.1f}h of sleep — athletes need 7-9h for optimal glycogen replenishment and hormonal recovery")
+        elif h >= 8.5:
+            sleep_facts.append(f"{h:.1f}h of sleep — extended sleep supports muscle protein synthesis")
+
+        if deep_pct < 15:
+            sleep_facts.append(f"Deep sleep is only {deep_pct:.0f}% of total — below the 15-20% target; deep sleep drives growth hormone release and tissue repair")
+        elif deep_pct > 22:
+            sleep_facts.append(f"Deep sleep is {deep_pct:.0f}% — excellent for physical recovery")
+
+        if rem_pct < 18:
+            sleep_facts.append(f"REM is {rem_pct:.0f}% — below optimal; REM consolidates motor learning and skill acquisition")
+        elif rem_pct > 25:
+            sleep_facts.append(f"REM is {rem_pct:.0f}% — strong cognitive and motor memory consolidation")
+
+    sleep_durations = [s["duration_seconds"] for s in sleep_7 if s.get("duration_seconds")]
+    if len(sleep_durations) >= 5:
+        std_dur = _std(sleep_durations)
+        if std_dur and std_dur > 5400:
+            sleep_facts.append("Sleep timing has been erratic this week — irregular schedules disrupt circadian-driven recovery")
+        elif std_dur and std_dur < 1800:
+            sleep_facts.append("Consistent sleep schedule this week — good for circadian alignment")
+
+    if sleep_perf is not None and rec is not None:
+        if sleep_perf >= 85 and rec < 50:
+            sleep_facts.append("Good sleep but low recovery — the limiter isn't sleep; check training load, stress, or nutrition")
+        elif sleep_perf < 65 and rec >= 67:
+            sleep_facts.append("Recovery is high despite poor sleep — likely riding a parasympathetic rebound; don't mistake it for genuine readiness")
+
+    sleep_metrics = {"Sleep %": sleep_perf, "Duration (h)": round(dur / 3600, 1) if dur else None, "Deep %": round((deep / dur) * 100) if dur and deep else None, "REM %": round((rem / dur) * 100) if dur and rem else None}
+
+    # ── HRV TRENDS — autonomic nervous system tracking ───────────────────────
+    hrv_facts = []
+
+    if hrv and avg_hrv_30 and std_hrv_30:
+        z = (hrv - avg_hrv_30) / std_hrv_30 if std_hrv_30 > 0 else 0
+        if z < -1.5:
+            hrv_facts.append(f"HRV ({hrv:.0f} ms) is >1.5 SD below baseline — significant autonomic suppression, avoid intensity")
+        elif z > 1.5:
+            hrv_facts.append(f"HRV ({hrv:.0f} ms) is >1.5 SD above baseline — peak autonomic readiness for hard efforts")
+
+    if len(hrv_30) >= 14:
+        recent_avg = _avg(hrv_30[-7:])
+        older_avg = _avg(hrv_30[-14:-7])
+        if recent_avg and older_avg:
+            shift = recent_avg - older_avg
+            pct = _pct_diff(recent_avg, older_avg)
+            if shift > 5:
+                hrv_facts.append(f"7-day HRV average is climbing (+{pct}%) — your aerobic base is adapting well")
+            elif shift < -5:
+                hrv_facts.append(f"7-day HRV average is declining ({pct}%) — accumulated fatigue or lifestyle stress is building")
+
+    hrv_cv = round(std_hrv_30 / avg_hrv_30 * 100, 1) if avg_hrv_30 and std_hrv_30 and avg_hrv_30 > 0 else None
+    if hrv_cv is not None:
+        if hrv_cv > 15:
+            hrv_facts.append(f"HRV coefficient of variation is {hrv_cv}% — high day-to-day volatility may indicate inconsistent recovery or high training stress")
+        elif hrv_cv < 8:
+            hrv_facts.append(f"HRV CV is {hrv_cv}% — low variability indicates stable autonomic state")
+
+    hrv_metrics = {"HRV today": hrv, "30d avg": round(avg_hrv_30) if avg_hrv_30 else None, "CV (%)": hrv_cv}
+
+    # ── PERFORMANCE — power, fitness, form ───────────────────────────────────
+    training_facts = []
+
+    rides_with_power = [a for a in activities_30 if a.get("norm_power")]
+    if len(rides_with_power) >= 3:
+        np_vals = [a["norm_power"] for a in rides_with_power]
+        np_recent = _avg(np_vals[-3:])
+        np_older = _avg(np_vals[:-3]) if len(np_vals) > 3 else None
+        if np_older and np_recent:
+            pct = _pct_diff(np_recent, np_older)
+            if pct > 3:
+                training_facts.append(f"Normalized power trending up ({np_recent:.0f}W vs {np_older:.0f}W earlier) — functional threshold may be rising")
+            elif pct < -5:
+                training_facts.append(f"Normalized power has dropped ({np_recent:.0f}W vs {np_older:.0f}W) — fatigue-driven or intentional endurance focus?")
+
+    if_vals = [a["intensity_factor"] for a in activities_30 if a.get("intensity_factor")]
+    if len(if_vals) >= 3:
+        recent_if = _avg(if_vals[-3:])
+        if recent_if and recent_if > 0.9:
+            training_facts.append(f"Recent rides average IF {recent_if:.2f} — predominantly above threshold; ensure recovery between efforts")
+        elif recent_if and recent_if < 0.65:
+            training_facts.append(f"Recent rides average IF {recent_if:.2f} — zone 2 dominant; good for base building if intentional")
+
+    rides_7 = [a for a in activities_7 if a.get("tss")]
+    hard_rides = [a for a in rides_7 if a.get("intensity_factor") and a["intensity_factor"] > 0.85]
+    easy_rides = [a for a in rides_7 if a.get("intensity_factor") and a["intensity_factor"] < 0.75]
+    if rides_7 and len(rides_7) >= 3:
+        polarization = len(hard_rides) + len(easy_rides)
+        mid_rides = len(rides_7) - polarization
+        if mid_rides > len(hard_rides) + len(easy_rides):
+            training_facts.append("Most rides this week were in the moderate zone — polarized training (80/20 easy/hard) is more effective for endurance gains")
+
+    vo2_vals = [a["vo2max"] for a in activities_30 if a.get("vo2max")]
+    if len(vo2_vals) >= 2:
+        v_slope = _slope(vo2_vals)
+        if v_slope and v_slope > 0.1:
+            training_facts.append(f"VO2max trending up ({vo2_vals[0]:.1f} → {vo2_vals[-1]:.1f}) — aerobic ceiling is expanding")
+        elif v_slope and v_slope < -0.1:
+            training_facts.append(f"VO2max declining ({vo2_vals[0]:.1f} → {vo2_vals[-1]:.1f}) — may need more high-intensity stimulus")
+
+    training_metrics = {"Avg NP (W)": round(_avg([a["norm_power"] for a in rides_with_power])) if rides_with_power else None, "Avg IF": round(_avg(if_vals), 2) if if_vals else None, "VO2max": vo2_vals[-1] if vo2_vals else None}
+
+    # ── RECOVERY PATTERNS — load-recovery relationships ──────────────────────
+    cross_facts = []
 
     pairs = []
     for w in whoop_30:
         d = w["date"]
         prev_day = (date.fromisoformat(d) - timedelta(days=1)).isoformat()
         prev_g = garmin_map.get(prev_day)
-        if prev_g and prev_g.get("training_load") and w.get("recovery_score"):
-            pairs.append((prev_g["training_load"], w["recovery_score"]))
+        prev_a = [a for a in activities_30 if a["date"] == prev_day and a.get("tss")]
+        if prev_g and w.get("recovery_score"):
+            tss = sum(a["tss"] for a in prev_a) if prev_a else 0
+            load = prev_g.get("training_load", 0) or 0
+            pairs.append({"tss": tss, "load": load, "next_rec": w["recovery_score"]})
 
-    if len(pairs) >= 5:
-        high = [(l, r) for l, r in pairs if l > 400]
-        low = [(l, r) for l, r in pairs if l <= 400]
-        if high and low:
-            high_avg = _avg([r for _, r in high])
-            low_avg = _avg([r for _, r in low])
-            diff_pct = ((low_avg - high_avg) / low_avg * 100) if low_avg else 0
-            if diff_pct > 5:
-                recovery_facts.append(f"Recovery drops {diff_pct:.0f}% the morning after sessions with Garmin load > 400 kJ ({high_avg:.0f}% vs {low_avg:.0f}%)")
-
-    rhr_30 = [w["resting_hr"] for w in whoop_30 if w.get("resting_hr")]
-    if rhr and rhr_30:
-        avg_rhr = _avg(rhr_30)
-        if rhr > avg_rhr + 3:
-            recovery_facts.append(f"Resting HR {rhr:.0f} bpm is elevated vs 30-day avg {avg_rhr:.0f} bpm — a sign of incomplete recovery")
-        elif rhr < avg_rhr - 3:
-            recovery_facts.append(f"Resting HR {rhr:.0f} bpm is lower than usual — strong recovery state")
-
-    if hrv and len(hrv_week) >= 3:
-        avg_hrv_7 = _avg(hrv_week)
-        if hrv < avg_hrv_7 * 0.85:
-            recovery_facts.append(f"HRV is significantly below your 7-day average — body may still be stressed")
-        elif hrv > avg_hrv_7 * 1.15:
-            recovery_facts.append(f"HRV is well above your 7-day average — prime window for high-intensity work")
-
-    recovery_metrics = {"Recovery": rec, "HRV": hrv, "Resting HR": rhr}
-
-    # ── SLEEP ─────────────────────────────────────────────────────────────────
-    sleep_facts = []
-
-    if sleep_perf is not None:
-        if sleep_perf >= 85:
-            sleep_facts.append(f"Sleep performance {sleep_perf}% — excellent recovery overnight")
-        elif sleep_perf >= 70:
-            sleep_facts.append(f"Sleep performance {sleep_perf}% — adequate but room to improve")
-        else:
-            sleep_facts.append(f"Sleep performance {sleep_perf}% — poor sleep may limit today's adaptation")
-
-    dur = today_s.get("duration_seconds")
-    rem = today_s.get("rem_seconds")
-    deep = today_s.get("deep_seconds")
-    if dur:
-        h = dur / 3600
-        sleep_facts.append(f"Total sleep: {h:.1f}h")
-    if rem:
-        sleep_facts.append(f"REM: {rem/3600:.1f}h")
-    if deep:
-        sleep_facts.append(f"Deep (SWS): {deep/3600:.1f}h")
-
-    sleep_durations = [s["duration_seconds"] for s in sleep_30[-7:] if s.get("duration_seconds")]
-    if len(sleep_durations) >= 5:
-        avg_dur = sum(sleep_durations) / len(sleep_durations)
-        variance = sum((x - avg_dur) ** 2 for x in sleep_durations) / len(sleep_durations)
-        std = variance ** 0.5
-        if std > 5400:
-            sleep_facts.append("Sleep duration has been highly variable this week — inconsistent timing affects recovery quality")
-        elif std < 1800:
-            sleep_facts.append("Sleep schedule has been very consistent this week")
-
-    sleep_metrics = {"Sleep %": sleep_perf, "Duration (h)": dur / 3600 if dur else None, "REM (h)": rem / 3600 if rem else None, "Deep (h)": deep / 3600 if deep else None}
-
-    # ── HRV ──────────────────────────────────────────────────────────────────
-    hrv_facts = []
-
-    hrv_30_vals = [w["hrv"] for w in whoop_30 if w.get("hrv")]
-    if hrv and hrv_30_vals:
-        avg_30 = _avg(hrv_30_vals)
-        std_30 = _std(hrv_30_vals)
-        hrv_facts.append(f"30-day HRV average: {avg_30:.0f} ms (SD {std_30:.0f} ms)" if std_30 else f"30-day HRV average: {avg_30:.0f} ms")
-        if std_30 and hrv < avg_30 - std_30:
-            hrv_facts.append("Today's HRV is more than 1 SD below baseline — notable suppression")
-        elif std_30 and hrv > avg_30 + std_30:
-            hrv_facts.append("Today's HRV is more than 1 SD above baseline — strong readiness signal")
-
-    if len(hrv_30_vals) >= 7:
-        recent = hrv_30_vals[-7:]
-        older = hrv_30_vals[-14:-7]
-        if older:
-            trend = _avg(recent) - _avg(older)
-            if trend <= -5:
-                hrv_facts.append(f"HRV average declining over the past 2 weeks ({trend:.0f} ms) — cumulative fatigue building")
-            elif trend >= 5:
-                hrv_facts.append(f"HRV average improving over the past 2 weeks (+{trend:.0f} ms) — positive adaptation")
-
-    hrv_metrics = {"HRV today": hrv, "30d avg": _avg(hrv_30_vals), "30d SD": _std(hrv_30_vals)}
-
-    # ── TRAINING ─────────────────────────────────────────────────────────────
-    training_facts = []
-
-    ride_30 = [a for a in activities_30 if a.get("tss")]
-    if ride_30:
-        total_tss = sum(a["tss"] for a in ride_30)
-        avg_tss = total_tss / len(ride_30)
-        training_facts.append(f"30-day TSS total: {total_tss:.0f} ({len(ride_30)} sessions, avg {avg_tss:.0f}/ride)")
-
-    np_vals = [a["norm_power"] for a in activities_30 if a.get("norm_power")]
-    if len(np_vals) >= 3:
-        recent_np = _avg(np_vals[-3:])
-        older_np = _avg(np_vals[:-3]) if len(np_vals) > 3 else None
-        if older_np and recent_np > older_np * 1.05:
-            training_facts.append(f"Normalized power trending up in recent rides ({recent_np:.0f}W vs {older_np:.0f}W earlier) — fitness building")
-        elif older_np and recent_np < older_np * 0.95:
-            training_facts.append(f"Normalized power dipping in recent rides — fatigue or detraining possible")
-
-    vo2_vals = [a["vo2max"] for a in activities_30 if a.get("vo2max")]
-    if len(vo2_vals) >= 2:
-        if vo2_vals[-1] > vo2_vals[0]:
-            training_facts.append(f"VO2 max improved from {vo2_vals[0]:.1f} to {vo2_vals[-1]:.1f} this month")
-
-    training_metrics = {"Total TSS": sum(a["tss"] for a in ride_30) if ride_30 else None, "Avg NP": _avg(np_vals), "VO2 max": vo2_vals[-1] if vo2_vals else None}
-
-    # ── CROSS-PLATFORM ───────────────────────────────────────────────────────
-    cross_facts = []
-
-    strain_recovery_pairs = []
-    for w in whoop_30:
-        d = w["date"]
-        next_day = (date.fromisoformat(d) + timedelta(days=1)).isoformat()
-        next_w = whoop_map.get(next_day)
-        if w.get("strain") and next_w and next_w.get("recovery_score"):
-            strain_recovery_pairs.append((w["strain"], next_w["recovery_score"]))
-
-    if len(strain_recovery_pairs) >= 5:
-        high_s = [(s, r) for s, r in strain_recovery_pairs if s > 15]
-        low_s = [(s, r) for s, r in strain_recovery_pairs if s <= 15]
-        if high_s and low_s:
-            hi_rec = _avg([r for _, r in high_s])
-            lo_rec = _avg([r for _, r in low_s])
-            diff = lo_rec - hi_rec
-            if diff > 8:
-                cross_facts.append(f"Next-day recovery averages {hi_rec:.0f}% after high strain (>15) vs {lo_rec:.0f}% after moderate strain — a {diff:.0f}% gap")
+    if len(pairs) >= 7:
+        high_tss = [p for p in pairs if p["tss"] > 80]
+        low_tss = [p for p in pairs if p["tss"] <= 40 and p["tss"] > 0]
+        if high_tss and low_tss:
+            hi_rec = _avg([p["next_rec"] for p in high_tss])
+            lo_rec = _avg([p["next_rec"] for p in low_tss])
+            gap = lo_rec - hi_rec
+            if gap > 8:
+                cross_facts.append(f"Next-day recovery averages {hi_rec:.0f}% after hard rides (TSS>80) vs {lo_rec:.0f}% after easy rides — {gap:.0f}% cost per hard session")
 
     hrv_tss_pairs = []
     for a in activities_30:
         d = a["date"]
         w = whoop_map.get(d, {})
-        if w.get("hrv") and a.get("tss"):
-            hrv_tss_pairs.append((w["hrv"], a["tss"]))
+        if w.get("hrv") and a.get("tss") and a.get("norm_power"):
+            hrv_tss_pairs.append({"hrv": w["hrv"], "tss": a["tss"], "np": a["norm_power"]})
 
     if len(hrv_tss_pairs) >= 5:
-        high_hrv = [(h, t) for h, t in hrv_tss_pairs if h > _avg([x for x, _ in hrv_tss_pairs])]
-        low_hrv = [(h, t) for h, t in hrv_tss_pairs if h <= _avg([x for x, _ in hrv_tss_pairs])]
-        if high_hrv and low_hrv:
-            hi_tss = _avg([t for _, t in high_hrv])
-            lo_tss = _avg([t for _, t in low_hrv])
-            if hi_tss > lo_tss * 1.1:
-                cross_facts.append(f"You tend to ride harder on high-HRV mornings (avg TSS {hi_tss:.0f} vs {lo_tss:.0f} on low-HRV days)")
+        avg_hrv_train = _avg([p["hrv"] for p in hrv_tss_pairs])
+        high_hrv_rides = [p for p in hrv_tss_pairs if p["hrv"] > avg_hrv_train]
+        low_hrv_rides = [p for p in hrv_tss_pairs if p["hrv"] <= avg_hrv_train]
+        if high_hrv_rides and low_hrv_rides:
+            hi_np = _avg([p["np"] for p in high_hrv_rides])
+            lo_np = _avg([p["np"] for p in low_hrv_rides])
+            if hi_np and lo_np and hi_np > lo_np * 1.05:
+                cross_facts.append(f"You produce {hi_np:.0f}W NP on high-HRV days vs {lo_np:.0f}W on low-HRV days — scheduling hard sessions on green days yields better training stimulus")
 
-    cross_metrics = {"Avg strain": _avg([w.get("strain") for w in whoop_30 if w.get("strain")]), "Avg recovery": _avg([w.get("recovery_score") for w in whoop_30 if w.get("recovery_score")])}
+    sleep_rec_pairs = [(s.get("performance_percent"), whoop_map.get(s["date"], {}).get("recovery_score"))
+                       for s in sleep_30 if s.get("performance_percent") and whoop_map.get(s["date"], {}).get("recovery_score")]
+    if len(sleep_rec_pairs) >= 7:
+        good_sleep = [r for sp, r in sleep_rec_pairs if sp >= 80]
+        bad_sleep = [r for sp, r in sleep_rec_pairs if sp < 70]
+        if good_sleep and bad_sleep:
+            gap = _avg(good_sleep) - _avg(bad_sleep)
+            if gap > 8:
+                cross_facts.append(f"Recovery averages {gap:.0f}% higher after good sleep (>80%) vs poor sleep (<70%) — sleep is your biggest lever")
+
+    cross_metrics = {}
 
     sections = {
-        "day":            {"facts": day_facts,      "metrics": day_metrics},
-        "week":           {"facts": week_facts,      "metrics": week_metrics},
-        "recovery":       {"facts": recovery_facts,  "metrics": recovery_metrics},
-        "sleep":          {"facts": sleep_facts,     "metrics": sleep_metrics},
-        "hrv":            {"facts": hrv_facts,       "metrics": hrv_metrics},
-        "training":       {"facts": training_facts,  "metrics": training_metrics},
-        "cross_platform": {"facts": cross_facts,     "metrics": cross_metrics},
+        "day":       {"facts": day_facts,      "metrics": day_metrics},
+        "week":      {"facts": week_facts,      "metrics": week_metrics},
+        "sleep":     {"facts": sleep_facts,     "metrics": sleep_metrics},
+        "hrv":       {"facts": hrv_facts,       "metrics": hrv_metrics},
+        "training":  {"facts": training_facts,  "metrics": training_metrics},
+        "recovery_patterns": {"facts": cross_facts, "metrics": cross_metrics},
     }
 
     coaching = generate_all_coaching(sections)

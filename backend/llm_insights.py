@@ -107,9 +107,15 @@ def generate_all_coaching(sections: Dict[str, dict]) -> Dict[str, str]:
         try:
             client = _get_openai()
             prompt = (
-                "You are an elite sports performance coach. A client has shared their health and training data.\n\n"
-                "For each category below, write exactly 2-3 sentences of personalized, actionable coaching advice. "
-                "Be direct and specific. Do not repeat the numbers — interpret them.\n\n"
+                "You are a cycling performance coach working with an experienced road cyclist who trains with power, "
+                "uses WHOOP for recovery/HRV and Garmin for training load/power.\n\n"
+                "For each category below, write exactly 1-2 sentences of coaching. Rules:\n"
+                "- Be specific and actionable (e.g. 'do Z2 today' not 'listen to your body')\n"
+                "- Never restate the numbers — the athlete can read them; interpret WHAT THEY MEAN\n"
+                "- Never repeat an insight that already appears in the observations\n"
+                "- Use cycling terminology: TSS, NP, IF, Z2, sweet spot, threshold, VO2max intervals, polarized training\n"
+                "- If the data shows positive adaptation, say so clearly — don't hedge with generic caution\n"
+                "- Connect dots across categories (e.g. link HRV trend to training load ramp)\n\n"
                 f"{sections_text}\n\n"
                 f"Respond with only a JSON object with these keys: {keys}"
             )
@@ -146,11 +152,11 @@ def generate_all_coaching(sections: Dict[str, dict]) -> Dict[str, str]:
         facts_text = "\n".join(f"- {f}" for f in data["facts"])
         metrics_lines = [f"  {k}: {v}" for k, v in data["metrics"].items() if v is not None]
         user_message = (
-            "You are an elite sports performance coach. A client has shared their health and training data.\n\n"
+            "You are a cycling performance coach for an experienced road cyclist using WHOOP + Garmin.\n\n"
             f"TODAY'S KEY METRICS:\n{chr(10).join(metrics_lines) or '  (no data)'}\n\n"
             f"DATA-DRIVEN OBSERVATIONS:\n{facts_text}\n\n"
-            "Write 2-3 sentences of personalized, actionable coaching advice. "
-            "Be direct and specific. Do not repeat the numbers — interpret them."
+            "Write 1-2 sentences of coaching. Don't restate numbers. Use cycling terms (TSS, NP, IF, Z2, threshold). "
+            "Be specific about what to do, not generic. If adaptation is positive, say so."
         )
         try:
             with _phi_semaphore:
