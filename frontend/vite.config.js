@@ -6,9 +6,10 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:8000',
-      '/whoop': 'http://localhost:8000',
-      '/garmin': 'http://localhost:8000',
+      '/api': 'http://localhost:8765',
+      '/whoop': 'http://localhost:8765',
+      '/garmin': 'http://localhost:8765',
+      '/strava': 'http://localhost:8765',
     },
   },
 })

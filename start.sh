@@ -20,7 +20,7 @@ if [ ! -d "venv" ]; then
 fi
 source venv/bin/activate
 pip install -q -r backend/requirements.txt
-uvicorn backend.main:app --reload --port 8000 &
+uvicorn backend.main:app --reload --port 8765 &
 BACKEND_PID=$!
 
 # Frontend
@@ -35,7 +35,7 @@ FRONTEND_PID=$!
 
 echo ""
 echo "✓ Dashboard running at http://localhost:5173"
-echo "✓ API running at    http://localhost:8000"
+echo "✓ API running at    http://localhost:8765"
 echo ""
 echo "Press Ctrl+C to stop both servers."
 
