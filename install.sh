@@ -42,8 +42,8 @@ fi
 
 echo "── Step 1: Garmin credentials ───────────────────────────────────────────"
 echo ""
-read -p "  Garmin email:    " GARMIN_EMAIL
-read -sp "  Garmin password: " GARMIN_PASSWORD
+read -p "  Garmin email:    " GARMIN_EMAIL </dev/tty
+read -sp "  Garmin password: " GARMIN_PASSWORD </dev/tty
 echo ""
 echo ""
 
@@ -63,9 +63,9 @@ echo ""
 echo "  Once you have them, come back here and paste them below."
 echo "  (Leave blank to skip Whoop and use Garmin only)"
 echo ""
-read -p "  Whoop Client ID:     " WHOOP_CLIENT_ID
+read -p "  Whoop Client ID:     " WHOOP_CLIENT_ID </dev/tty
 if [ -n "$WHOOP_CLIENT_ID" ]; then
-    read -sp "  Whoop Client Secret: " WHOOP_CLIENT_SECRET
+    read -sp "  Whoop Client Secret: " WHOOP_CLIENT_SECRET </dev/tty
     echo ""
 fi
 echo ""
