@@ -15,9 +15,7 @@ pip install -q -r backend/requirements.txt
 
 echo "==> Building frontend..."
 cd "$ROOT/frontend"
-if [ ! -d "node_modules" ]; then
-    npm install
-fi
+npm install
 npm run build
 
 echo "==> Restarting app via launchd..."

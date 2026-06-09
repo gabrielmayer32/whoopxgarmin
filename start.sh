@@ -23,6 +23,18 @@ pip install -q -r backend/requirements.txt
 uvicorn backend.main:app --reload --port 8765 &
 BACKEND_PID=$!
 
+# Warn if dist is stale (older than any src file)
+if [ -d "$ROOT/frontend/dist" ]; then
+  DIST_TIME=$(stat -f %m "$ROOT/frontend/dist/index.html" 2>/dev/null || echo 0)
+  NEWEST_SRC=$(find "$ROOT/frontend/src" -type f \( -name "*.jsx" -o -name "*.tsx" -o -name "*.js" -o -name "*.ts" -o -name "*.css" \) -newer "$ROOT/frontend/dist/index.html" 2>/dev/null | head -1)
+  if [ -n "$NEWEST_SRC" ]; then
+    echo "⚠️  frontend/dist is stale — src files changed since last build."
+    echo "   Run: cd frontend && npm run build"
+    echo "   (localhost:8765 will serve the OLD build until you rebuild)"
+    echo ""
+  fi
+fi
+
 # Frontend
 echo "→ Starting frontend..."
 cd "$ROOT/frontend"
