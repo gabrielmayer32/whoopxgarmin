@@ -238,4 +238,13 @@ def health():
 
 _FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
 if _FRONTEND_DIST.is_dir():
+    from fastapi.responses import FileResponse
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str):
+        file = _FRONTEND_DIST / full_path
+        if file.is_file():
+            return FileResponse(file)
+        return FileResponse(_FRONTEND_DIST / "index.html")
+
     app.mount("/", StaticFiles(directory=str(_FRONTEND_DIST), html=True), name="frontend")
