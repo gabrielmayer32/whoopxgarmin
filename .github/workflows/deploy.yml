@@ -12,7 +12,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Write .env
+        run: |
+          cat > .env <<EOF
+          GARMIN_EMAIL=${{ secrets.GARMIN_EMAIL }}
+          GARMIN_PASSWORD=${{ secrets.GARMIN_PASSWORD }}
+          WHOOP_CLIENT_ID=${{ secrets.WHOOP_CLIENT_ID }}
+          WHOOP_CLIENT_SECRET=${{ secrets.WHOOP_CLIENT_SECRET }}
+          WHOOP_REDIRECT_URI=http://localhost:8765/whoop/callback
+          STRAVA_CLIENT_ID=${{ secrets.STRAVA_CLIENT_ID }}
+          STRAVA_CLIENT_SECRET=${{ secrets.STRAVA_CLIENT_SECRET }}
+          STRAVA_REDIRECT_URI=http://localhost:8765/strava/callback
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+          DATABASE_DIR=${{ secrets.DATABASE_DIR }}
+          EOF
+
       - name: Run deploy script
         run: bash deploy.sh
-        env:
-          DEPLOY_MODE: "true"
