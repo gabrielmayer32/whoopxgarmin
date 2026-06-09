@@ -51,7 +51,7 @@ export default function Navbar({ onSyncComplete }) {
     <nav className="border-b border-border bg-surface sticky top-0 z-10">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-sm tracking-tight">Whoop x Garmin </span>
+          <span className="font-semibold text-sm tracking-tight">Whoop x Garmin</span>
           <span className="text-border">|</span>
           <div className="flex gap-1">
             <NavLink to="/" end className={linkClass}>Dashboard</NavLink>
