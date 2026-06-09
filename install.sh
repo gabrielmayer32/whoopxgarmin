@@ -238,6 +238,19 @@ launchctl load "$LAUNCH_AGENT_APP"
 launchctl unload "$LAUNCH_AGENT_UPDATER" 2>/dev/null || true
 launchctl load "$LAUNCH_AGENT_UPDATER"
 
+# ── Initial 3-year backfill ───────────────────────────────────────────────────
+
+echo "==> Waiting for app to start..."
+for i in $(seq 1 15); do
+    if curl -sf http://localhost:$APP_PORT/health > /dev/null 2>&1; then
+        break
+    fi
+    sleep 2
+done
+
+echo "==> Starting 3-year historical sync (this runs in the background)..."
+curl -sf -X POST "http://localhost:$APP_PORT/api/backfill?days=1095" > /dev/null 2>&1 || true
+
 # ── Done ──────────────────────────────────────────────────────────────────────
 
 echo ""

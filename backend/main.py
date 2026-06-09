@@ -171,7 +171,7 @@ async def manual_backfill(days: int = None, start_date: str = None):
         start = end - timedelta(days=days)
     else:
         from datetime import timedelta
-        start = end - timedelta(days=90)
+        start = end - timedelta(days=1095)
 
     total_days = (end - start).days + 1
 
