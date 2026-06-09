@@ -47,7 +47,6 @@ export default function Dashboard() {
   const { preset, days, startDate, offset, windowLabel, canGoForward, select, goBack, goForward } = useDateRange('1M')
   const [data, setData] = useState(null)
   const [trends, setTrends] = useState([])
-  const [recentTrends, setRecentTrends] = useState([])
   const [correlation, setCorrelation] = useState([])
   const [strainCorr, setStrainCorr] = useState([])
   const [prediction, setPrediction] = useState(null)
@@ -62,7 +61,6 @@ export default function Dashboard() {
     Promise.all([
       fetchDashboard(),
       fetchTrends(days, startDate),
-      fetchTrends(2),
       fetchWhoopStatus(),
       fetchWhoopGarminCorrelation(days, startDate),
       fetchStrainRecoveryCorrelation(days, startDate),
@@ -70,10 +68,9 @@ export default function Dashboard() {
       fetchAnomalies(days),
       fetchPMC(Math.max(days, 120), startDate),
     ])
-      .then(([dash, t, recent, ws, corr, sc, pred, anomalyData, pmc]) => {
+      .then(([dash, t, ws, corr, sc, pred, anomalyData, pmc]) => {
         setData(dash)
         setTrends(t)
-        setRecentTrends(recent)
         setWhoopAuth(ws.authorized)
         setCorrelation(corr)
         setStrainCorr(sc)
@@ -104,7 +101,7 @@ export default function Dashboard() {
   // Last 7 data points for sparklines (use raw trends, not date-windowed)
   const spark7 = trends.slice(-7)
   const sparkFor = (key) => spark7.map(d => d[key]).filter(v => v != null)
-  const yesterdayRow = recentTrends.slice(-2)[0]
+  const yesterdayRow = trends.slice(-2)[0] // second-to-last entry
 
   const overlayData = aggregatedTrends.map((t, i) => {
     const nextDay = aggregatedTrends[i + 1]
