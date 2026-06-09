@@ -63,6 +63,15 @@ def _save_tokens(tokens: dict):
         conn.close()
 
 
+def _clear_tokens():
+    conn = get_connection()
+    try:
+        conn.execute("DELETE FROM whoop_tokens")
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def _load_tokens() -> Optional[dict]:
     conn = get_connection()
     try:
@@ -92,8 +101,9 @@ def _refresh_if_needed() -> Optional[str]:
             _save_tokens(new_tokens)
             return new_tokens["access_token"]
         except Exception as e:
-            logger.error(f"WHOOP token refresh failed: {e}")
-            return tokens.get("access_token")
+            logger.error(f"WHOOP token refresh failed: {e} — clearing stale token, re-authorization required")
+            _clear_tokens()
+            return None
 
     return tokens["access_token"]
 
