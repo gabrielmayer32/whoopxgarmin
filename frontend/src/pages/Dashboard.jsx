@@ -132,7 +132,7 @@ export default function Dashboard() {
           />
           {whoopAuth === false && (
             <button
-              onClick={() => { window.location.href = 'http://localhost:8000/whoop/login' }}
+              onClick={() => { window.location.href = '/whoop/login' }}
               className="px-4 py-2 text-sm font-medium rounded-lg bg-purple/10 text-purple border border-purple/30 hover:bg-purple/20 transition-colors"
             >
               Connect WHOOP →
