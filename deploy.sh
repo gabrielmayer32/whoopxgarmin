@@ -5,6 +5,9 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 LOG_DIR="$HOME/Library/Logs/whoop-garmin"
 mkdir -p "$LOG_DIR"
 
+echo "==> Killing any existing uvicorn on port 8765..."
+lsof -ti tcp:8765 | xargs kill -9 2>/dev/null || true
+
 echo "==> Setting up Python environment..."
 cd "$ROOT"
 if [ ! -d "venv" ]; then
