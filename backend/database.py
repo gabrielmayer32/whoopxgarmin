@@ -5,7 +5,7 @@ from pathlib import Path
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _DEFAULT_DATA_DIR = Path.home() / "Library" / "Application Support" / "whoop-garmin"
-_DATA_DIR = Path(os.environ.get("DATABASE_DIR", str(_DEFAULT_DATA_DIR)))
+_DATA_DIR = Path(os.environ.get("DATABASE_DIR") or str(_DEFAULT_DATA_DIR))
 _DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 DB_PATH = _DATA_DIR / "health_data.db"
