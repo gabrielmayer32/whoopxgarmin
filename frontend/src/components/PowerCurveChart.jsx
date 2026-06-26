@@ -4,8 +4,8 @@ import { line as d3line, curveCatmullRom } from 'd3-shape'
 import { scaleLog, scaleLinear } from 'd3-scale'
 
 const W = 560
-const H = 200
-const PAD = { top: 12, right: 16, bottom: 28, left: 44 }
+const H = 300
+const PAD = { top: 12, right: 16, bottom: 28, left: 48 }
 const INNER_W = W - PAD.left - PAD.right
 const INNER_H = H - PAD.top - PAD.bottom
 
@@ -73,8 +73,11 @@ export default function PowerCurveChart({ data, compareLabel, seriesColors = {} 
     .range([0, innerW])
     .clamp(true)
 
-  const yMin = Math.floor(Math.min(...allVals) * 0.92)
-  const yMax = Math.ceil(Math.max(...allVals) * 1.04)
+  const rawMin = Math.min(...allVals)
+  const rawMax = Math.max(...allVals)
+  const padding = (rawMax - rawMin) * 0.15 || 20
+  const yMin = Math.floor(rawMin - padding)
+  const yMax = Math.ceil(rawMax + padding * 0.5)
   const yScale = scaleLinear().domain([yMin, yMax]).range([INNER_H, 0]).clamp(true)
 
   const makeLine = (key) => {
@@ -87,7 +90,7 @@ export default function PowerCurveChart({ data, compareLabel, seriesColors = {} 
   }
 
   // Y-axis ticks
-  const yTicks = yScale.ticks(5)
+  const yTicks = yScale.ticks(8)
 
   // X-axis ticks (the actual data points)
   const xTicks = data.map(d => ({ sec: d.sec, label: d.label }))
@@ -115,7 +118,7 @@ export default function PowerCurveChart({ data, compareLabel, seriesColors = {} 
   const tooltipX = cursor ? (cursor.svgX > innerW * 0.65 ? cursor.svgX - 130 : cursor.svgX + 12) : 0
 
   return (
-    <div ref={containerRef} className="w-full select-none" style={{ height: H }}>
+    <div ref={containerRef} className="w-full select-none" style={{ height: H, minHeight: H }}>
       <svg
         ref={svgRef}
         width="100%"
